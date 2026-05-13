@@ -1,0 +1,56 @@
+[
+  {
+    "file": "src/image_io.c",
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wno-unused-variable",
+      "-Wno-unused-function",
+      "-Wno-pointer-arith",
+      "-Iinclude",
+      "-O2",
+      "-c",
+      "src/image_io.c",
+      "-o",
+      "obj/image_io.o"
+    ],
+    "directory": "/Users/user/bardachok_local/unik/kursova/drone_detection",
+    "output": "obj/image_io.o"
+  },
+  {
+    "file": "src/main.c",
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wno-unused-variable",
+      "-Wno-unused-function",
+      "-Wno-pointer-arith",
+      "-Iinclude",
+      "-O2",
+      "-c",
+      "src/main.c",
+      "-o",
+      "obj/main.o"
+    ],
+    "directory": "/Users/user/bardachok_local/unik/kursova/drone_detection",
+    "output": "obj/main.o"
+  },
+  {
+    "file": "src/my_vector.c",
+    "arguments": [
+      "/usr/bin/gcc",
+      "-Wall",
+      "-Wno-unused-variable",
+      "-Wno-unused-function",
+      "-Wno-pointer-arith",
+      "-Iinclude",
+      "-O2",
+      "-c",
+      "src/my_vector.c",
+      "-o",
+      "obj/my_vector.o"
+    ],
+    "directory": "/Users/user/bardachok_local/unik/kursova/drone_detection",
+    "output": "obj/my_vector.o"
+  }
+]

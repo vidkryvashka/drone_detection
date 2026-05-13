@@ -1,0 +1,7 @@
+obj/
+bin/
+unused/
+test/
+trash/
+.cache
+output.png
