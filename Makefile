@@ -1,8 +1,8 @@
-CC = gcc
+CC = clang
 CXX = clang++
 
 CFLAGS_W = -Wall -Wno-unused-variable -Wno-unused-function -Wno-pointer-arith
-CFLAGS_I = -Iinclude
+CFLAGS_I = -Iinclude -Iinclude/foreign
 CFLAGS = $(CFLAGS_W) $(CFLAGS_I) -O2
 
 # platform dependent
@@ -13,15 +13,18 @@ OBJ_DIR = obj
 BIN_DIR = bin
 TARGET = $(BIN_DIR)/program
 
-SRCS = $(wildcard $(SRC_DIR)/*.c) 
-OBJS = $(patsubst $(SRC_DIR)/%.c, $(OBJ_DIR)/%.o, $(SRCS))
+SRCS = $(shell find $(SRC_DIR) -name "*.c")
+OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
+OBJ_SUBDIRS = $(sort $(dir $(OBJS)))
 
 all: prepare $(TARGET)
 
 prepare:
-	@mkdir -p $(OBJ_DIR) $(BIN_DIR)
+	@mkdir -p $(BIN_DIR)
+	@mkdir -p $(OBJ_SUBDIRS)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
 $(TARGET): $(OBJS)

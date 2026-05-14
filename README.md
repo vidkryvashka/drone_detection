@@ -1,6 +1,12 @@
-# курсова drone detection
+# course work drone detection
 
-compile:
+## compile:
 ```sh
-bear -- make
+bear -- make # helps to setup clang lints
 ```
+
+## dependencies
+single file libs in include/foreign/
+
+	- stb_image.h
+	- stb_image_write.h

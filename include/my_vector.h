@@ -1,7 +1,6 @@
 #ifndef MY_VECTOR_H
 #define MY_VECTOR_H
 
-#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -12,10 +11,10 @@
  * @brief base vector struct inspired by std::vector
  */
 typedef struct {
-    void* data;
-    size_t size;
-    size_t capacity;
-    size_t sizeof_element;
+	void* data;
+	size_t size;
+	size_t capacity;
+	size_t sizeof_element;
 } vector_t;
 
 
@@ -67,15 +66,6 @@ void* vector_get(const vector_t *vec, const size_t index);
  * @return -1: memcpy returned NULL
  */
 errno_t vector_set(vector_t *vec, size_t index, void *val);
-
-
-// /**
-//  * @brief Print uint8_t vector
-//  * 
-//  * @param vec 
-//  * @return errno_t
-//  */
-// errno_t vector_print(const vector_t *vec);
 
 
 /**
