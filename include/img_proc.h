@@ -25,15 +25,15 @@ typedef struct {
 
 
 #define START_THRESHOLD 120
-#define KEYPOINTS_MAX_COUNT 32
-#define BRIEF_SIZE 256
-#define PATCH_SIZE 31
-#define SIGMA 5
-#define MAX_KEYPOINTS 10000
-#define SCALE_FACTOR 1.41421356237 // sqrt(2)
-#define NLEVELS 8
 #define EDGE_THRESHOLD 31
-#define SAVIMG_IMAGE_DIM_COEF 0.4
+// #define MAX_KEYPOINTS 10000
+// #define KEYPOINTS_MAX_COUNT 32
+// #define BRIEF_SIZE 256
+// #define PATCH_SIZE 31
+// #define SIGMA 5
+// #define SCALE_FACTOR 1.41421356237 // sqrt(2)
+// #define NLEVELS 8
+// #define SAVIMG_IMAGE_DIM_COEF 0.4
 
 /**
  * @brief Magic algorithm to detect keypoints, took from habr and rewrote

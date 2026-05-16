@@ -12,6 +12,7 @@ static void makeOffsets(
 	int16_t pixel[],
 	uint16_t row_stride
 ) {
+	// Circle around suspected pixels
 	pixel[0] = 0 + row_stride * 3;
 	pixel[1] = 1 + row_stride * 3;
 	pixel[2] = 2 + row_stride * 2;
@@ -5822,10 +5823,10 @@ static void fastNonmaxSuppression(
 	if (num_corners < 1)
 		return;
 
-	// Find where each row begins
-	//	(the corners are output in raster scan order). A beginning of -1 signifies
-	//	that there are no corners on that row.
-	int16_t last_row = ((pixel_coord_t *)vector_get(c, num_corners-1))->y; // c_std[num_corners - 1];
+	/* Find where each row begins
+	 * (the corners are output in raster scan order). A beginning of -1 signifies
+	 * that there are no corners on that row. */
+	int16_t last_row = ((pixel_coord_t *)vector_get(c, num_corners - 1))->y;
 	vector_t *row_start = vector_create(sizeof(int));
 	vector_reserve(row_start, last_row+1);
 
@@ -5837,9 +5838,8 @@ static void fastNonmaxSuppression(
 	int16_t prev_row = -1;	// 65536; // max uint16_t
 	for (i = 0; i < num_corners; i++)
 		if ( ((pixel_coord_t *)vector_get(c, i))->y != prev_row ) {
-			// row_start[c_std[i].y] = i;	// for example from std::vector
 			vector_set(row_start, ((pixel_coord_t *)vector_get(c, i))->y, &i);
-			prev_row = *(uint16_t *)vector_get(c, i);	   // = c_std[i].y;
+			prev_row = *(uint16_t *)vector_get(c, i);
 		}
 
 	vector_reserve(res, num_corners);
@@ -5862,8 +5862,8 @@ static void fastNonmaxSuppression(
 		// Check right
 		if (
 			i < num_corners-1	&&
-			((pixel_coord_t *)vector_get(c, i+1))->x == xx+1	 &&
-			((pixel_coord_t *)vector_get(c, i+1))->y == yy		   &&
+			((pixel_coord_t *)vector_get(c, i+1))->x == xx+1	&&
+			((pixel_coord_t *)vector_get(c, i+1))->y == yy		&&
 			COMPARE( *(uint8_t *)vector_get(scores, i+1), score )
 		)
 			continue;
@@ -5886,7 +5886,7 @@ static void fastNonmaxSuppression(
 
 			for (
 				j = point_above;
-				((pixel_coord_t *)vector_get(c, point_above))->y < yy	   &&
+				((pixel_coord_t *)vector_get(c, point_above))->y < yy	&&
 				((pixel_coord_t *)vector_get(c, point_above))->x <= xx+1;
 				++j
 			) {
@@ -5914,7 +5914,7 @@ static void fastNonmaxSuppression(
 			// Make point below point to one of the pixels belowthe current point, if it exists.
 			for (;
 				point_below < num_corners	&&
-				((pixel_coord_t *)vector_get(c, point_below))->y == yy+1   &&
+				((pixel_coord_t *)vector_get(c, point_below))->y == yy+1	&&
 				((pixel_coord_t *)vector_get(c, point_below))->x < xx-1;
 				++ point_below
 			)
@@ -5923,13 +5923,13 @@ static void fastNonmaxSuppression(
 			for (
 				j = point_below;
 				j < num_corners &&
-				((pixel_coord_t *)vector_get(c, point_below))->y == yy+1   &&
+				((pixel_coord_t *)vector_get(c, point_below))->y == yy+1	&&
 				((pixel_coord_t *)vector_get(c, point_below))->x <= xx+1;
-				++j
+				j++
 			) {
 				uint16_t x = ((pixel_coord_t *)vector_get(c, point_below))->x;
 				if (
-					(x == xx - 1 || x == xx || x == xx + 1)		&&
+					(x == xx - 1 || x == xx || x == xx + 1)	&&
 					COMPARE(*(uint8_t *)vector_get(scores, j), score)
 				) {
 					suppressed = 1;

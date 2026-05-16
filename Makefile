@@ -6,7 +6,7 @@ CFLAGS_I = -Iinclude -Iinclude/foreign
 CFLAGS = $(CFLAGS_W) $(CFLAGS_I) -O2
 
 # platform dependent
-LDFLAGS  = $(RAYLIB_LINK) -lm -lpthread -ldl
+LDFLAGS  = -lm -lpthread -ldl
 
 SRC_DIR = src
 OBJ_DIR = obj
@@ -30,8 +30,16 @@ $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 $(TARGET): $(OBJS)
 	$(CC) $^ -o $@ $(LDFLAGS)
 
+compile: $(TARGET)
+
 run: $(TARGET)
 	./$(TARGET)
+
+test: $(TARGET)
+	./$(TARGET) trash/old_images/raw/mavic_in_bush.png
+
+show: $(TARGET) output.png
+	open output.png
 
 clean:
 	rm -f $(OBJ_DIR)/*.o

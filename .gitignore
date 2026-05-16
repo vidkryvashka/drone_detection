@@ -1,8 +1,9 @@
-include/foreign
+include/foreign/*
 obj/
 bin/
 unused/
 test/
 trash/
+compile_commands.json
 .cache
 output.png

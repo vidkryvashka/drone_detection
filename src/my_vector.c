@@ -2,7 +2,9 @@
 
 #include "my_vector.h"
 
-#define INIT_CAPACITY 4
+#define TAG "my_vector "
+#define INIT_CAPACITY 8
+
 
 
 vector_t* vector_create(
@@ -25,22 +27,20 @@ errno_t vector_reserve(
 	const size_t new_capacity
 ) {
 	if (!vec) {
-		printf("vector_reserve !vec\n");
+		ddloge(TAG, "!vec");
 		return EINVAL;
 	}
 
-	if (new_capacity <= vec->capacity) {
-		printf("vector_reserve expected bigger capacity, not <=. new_cap: %ld curr: %ld\n", new_capacity, vec->capacity);
-		return EINVAL;
-	}
+	if (new_capacity <= vec->capacity)
+		return OK;
 
-	void *new_data = realloc(vec->data, new_capacity * vec->sizeof_element);
-	if (!new_data) {
-		printf("vector_reserve realloc lost data\n");
+	void *realloced_data = realloc(vec->data, new_capacity * vec->sizeof_element);
+	if (!realloced_data) {
+		ddloge(TAG, "realloc(...) lost data");
 		return ENOSPC;
 	}
 
-	vec->data = new_data;			// looks like very memory safe
+	vec->data = realloced_data;
 	vec->capacity = new_capacity;
 
 	return OK;
@@ -52,13 +52,14 @@ errno_t vector_push_back(
 	const void *element
 ) {
 	if (!vec || !element) {
-		printf("vector_push_back (!vec || !element)\n");
+		ddloge(TAG, "(!vec || !element)");
 		return EINVAL;
 	}
 
 	if (vec->size >= vec->capacity) {
-		size_t new_capacity = (vec->capacity == 0) ? 8 : vec->capacity * 1.4f;
-		vector_reserve(vec, new_capacity);
+		size_t new_capacity = (vec->capacity == 0) ? INIT_CAPACITY : vec->capacity * (vec->capacity * 3) / 2;
+		if (vector_reserve(vec, new_capacity))
+			return ENOMEM;
 	}
 
 	void *dest = (char*)vec->data + vec->size * vec->sizeof_element;
@@ -81,14 +82,14 @@ void* vector_get(
 errno_t vector_set(
 	vector_t *vec,
 	const size_t index,
-	void *val)
-{
+	void *val
+) {
 	if (index >= vec->capacity)
 		vector_reserve(vec, index + 2);
 
 	void *dest = (char*)vec->data + index * vec->sizeof_element;
 	if (!memcpy(dest, val, vec->sizeof_element)) {
-		printf("failed to set element in vec, sizeof_element %ld\n", vec->sizeof_element);
+		ddloge(TAG, "failed to set element in vec, sizeof_element %ld", vec->sizeof_element);
 		return ENOSPC;
 	}
 	if (index >= vec->size)
@@ -108,7 +109,7 @@ errno_t vector_clear(
 		vec->capacity = 0;
 		return OK;
 	} else {
-		printf("no vec\n");
+		ddloge(TAG, "no vec");
 		return EINVAL;
 	}
 }
@@ -122,7 +123,7 @@ errno_t vector_destroy(
 		free(vec);
 		return OK;
 	} else {
-		printf("no vec\n");
+		ddloge(TAG, "no vec");
 		return EINVAL;
 	}
 }
@@ -132,7 +133,7 @@ errno_t vector_resize(
 	vector_t *vec, size_t new_size
 ) {
 	if (!vec) {
-		printf("vector_resize no vec!\n");
+		ddloge(TAG, "no vec!");
 		return EINVAL;
 	}
 

@@ -1,6 +1,6 @@
 CompileFlags:
   Add: [
     "-Iinclude",
-    "-Icomponents/raygui",
+    "-Iinclude/foreign",
     "-I/opt/homebrew/include",
   ]

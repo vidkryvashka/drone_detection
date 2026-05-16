@@ -9,8 +9,8 @@
 
 image_t* image_load_gray(const char* filename) {
 	image_t* img = malloc(sizeof(image_t));
-	img->pixels = stbi_load(filename, (int*)&img->width, (int*)&img->height, (int*)&img->channel, 1);
-	img->channel = 1; 
+	img->pixels = stbi_load(filename, (int*)&img->width, (int*)&img->height, (int*)&img->channel, GRAY);
+	img->channel = GRAY;
 
 	if (!img->pixels) {
 		free(img);
@@ -23,7 +23,7 @@ image_t* image_load_gray(const char* filename) {
 image_t* image_create(uint16_t width, uint16_t height, enum CHANNELS channel) {
 	image_t* img = (image_t*)malloc(sizeof(image_t));
 	if (!img) {
-		perror(TAG "image_create: struct malloc failed");
+		ddloge(TAG, "malloc image_t failed");
 		return NULL;
 	}
 
@@ -36,7 +36,7 @@ image_t* image_create(uint16_t width, uint16_t height, enum CHANNELS channel) {
 	img->pixels = (uint8_t*)calloc(buffer_size, sizeof(uint8_t));
 
 	if (!img->pixels) {
-		perror(TAG "image_create: pixels calloc failed");
+		ddloge(TAG, "pixels calloc failed");
 		free(img);
 		return NULL;
 	}
@@ -51,7 +51,7 @@ errno_t image_save_png(const char* filename, const image_t* img) {
 	if (stbi_write_png(filename, img->width, img->height, img->channel, img->pixels, 0)) {
 		return OK;
 	}
-	printf(TAG "%s unexpected error", __func__);
+	ddloge(TAG, "couldn't stbi_write_png");
 	return -1;
 }
 
