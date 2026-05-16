@@ -31,6 +31,9 @@ errno_t image_save_png(const char* filename, const image_t* img);
 image_t* image_create(uint16_t width, uint16_t height, enum CHANNELS channel);
 errno_t image_free(image_t* img);
 
+#define DEFAULT_THRESHOLD 70
+#define DEAFAULT_DIM_COEF 3
+#define MAX_DIM_COEF 12
 #define START_THRESHOLD 120
 #define EDGE_THRESHOLD 31
 // #define MAX_KEYPOINTS 10000 // mb to prevent buffer overflow
@@ -47,7 +50,7 @@ errno_t image_free(image_t* img);
  * 
  * @param image image_t* would be nice if grey
  * @param keypoints vector* <pixel_coord_t> with information
- * @param brightness_coef uint8_t	0 - 8 brightness lvl for original pixels
+ * @param brightness_coef uint8_t	0 - MAX_DIM_COEF brightness lvl for original pixels
  */
 errno_t place_points_on_img(
 	image_t *img,

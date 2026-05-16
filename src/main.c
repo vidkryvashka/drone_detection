@@ -6,24 +6,23 @@
 
 #define TAG "main "
 
-
-
 int main(int argc, char **argv) {
-	if (argc < 2) {
-		ddlogi(TAG, "Usage: %s <input.png>", argv[0]);
+	main_args_t main_args = {0};
+	if (parse_main_args(argc, argv, &main_args)) {
+		ddloge(TAG, "parse_main_args failed");
 		return EINVAL;
 	}
 
-	image_t* img = image_load(argv[1], GRAY);
+	image_t* img = image_load(main_args.filepath, GRAY);
 	if (!img) {
-		fprintf(stderr, "Could not load image\n");
+		fprintf(stderr, "could not image_load\n");
 		return EINVAL;
 	}
 
-	vector_t *pts = fast9(img, 70);
-	place_points_on_img(img, pts, 3);
+	vector_t *pts = fast9(img, main_args.fast9_threshold);
+	place_points_on_img(img, pts, main_args.dim_coef);
 
-	if (image_save_png(argv[1], img) == OK) {
+	if (image_save_png(main_args.filepath, img) == OK) {
 		ddlogi(TAG, "\033[0;32mSuccess!\033[0;0m");
 	} else {
 		ddloge(TAG, "Failed to save image");

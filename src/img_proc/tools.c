@@ -6,18 +6,18 @@
 errno_t place_points_on_img(
 	image_t *img,
 	vector_t *keypoints,
-	uint8_t brightness_coef		// 0 - 8 brightness lvl for original pixels
+	uint8_t brightness_coef
 ) {
 	if (!img || !img->pixels || !keypoints) {
 		ddloge(TAG, "invalid args");
 		return EINVAL;
 	}
 
-	if (brightness_coef >= 8)
+	if (brightness_coef >= MAX_DIM_COEF)
 		ddlogw(TAG, "brightness_coef >= 8 (%d)", brightness_coef);
 	else
 		for (size_t i = 0; i < img->width * img->height; i++)
-			img->pixels[i] = (uint8_t)(img->pixels[i] * brightness_coef / 8);
+			img->pixels[i] = (uint8_t)(img->pixels[i] * brightness_coef / MAX_DIM_COEF);
 
 	for (size_t i = 0; i < keypoints->size; i++) {
 		pixel_coord_t* p = vector_get(keypoints, i);
