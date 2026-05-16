@@ -9,15 +9,15 @@
 #define TAG "img_io "
 
 image_t* image_load(
-	const char* filename,
+	const char* filepath,
 	enum CHANNELS channel
 ) {
 	image_t* img = malloc(sizeof(image_t));
-	img->pixels = stbi_load(filename, (int*)&img->width, (int*)&img->height, (int*)&img->channel, channel);
+	img->pixels = stbi_load(filepath, (int*)&img->width, (int*)&img->height, (int*)&img->channel, channel);
 	img->channel = channel;
 
 	if (!img->pixels) {
-		ddloge(TAG, "stbi_load failed");
+		ddloge(TAG, "stbi_load %s failed", filepath);
 		free(img);
 		return NULL;
 	}
@@ -54,35 +54,39 @@ image_t* image_create(
 }
 
 
-errno_t image_save_png(
-	const char* filepath,
+errno_t image_save_jpg(
+	const char* input_filepath,
+	const char* output_dir,
 	const image_t* img
 ) {
-	if (!img || !img->pixels || !filepath) {
+	if (!img || !img->pixels || !input_filepath || !output_dir) {
 		ddloge(TAG, "invalid arg");
 		return EINVAL;
 	}
 
-	const char *last_slash = strrchr(filepath, '/');
-	const char *pure_filename;
+	const char *last_slash = strrchr(input_filepath, '/');
+	const char *pure_filename = (last_slash != NULL) ? (last_slash + 1) : input_filepath;
 
-	if (last_slash != NULL)
-		pure_filename = last_slash + 1;
-	else
-		pure_filename = filepath;
+	size_t dir_len = strlen(output_dir);
+	const char *separator = "";
+	
+	if (dir_len > 0 && output_dir[dir_len - 1] != '/')
+		separator = "/";
 
-	size_t needed_size = strlen("output/") + strlen(pure_filename) + 1;
+	size_t needed_size = dir_len + strlen(separator) + strlen(pure_filename) + 1;
+	
 	char custom_file_path[needed_size];
-	snprintf(custom_file_path, needed_size, "output/%s", pure_filename);
+	snprintf(custom_file_path, needed_size, "%s%s%s", output_dir, separator, pure_filename);
 
-	/* 0 at the end — is stride (automatic width * channel) */
-	if (stbi_write_png(custom_file_path, img->width, img->height, img->channel, img->pixels, 0)) {
+	if (stbi_write_jpg(custom_file_path, img->width, img->height, img->channel, img->pixels, 0)) {
 		ddlogi(TAG, "saved to \033[0;32m%s\033[0;0m", custom_file_path);
 		return OK;
 	}
-	ddloge(TAG, "couldn't stbi_write_png %s", custom_file_path);
-	return -1;
+
+	ddloge(TAG, "couldn't stbi_write_jpg %s", custom_file_path);
+	return EIO;
 }
+
 
 
 errno_t image_free(

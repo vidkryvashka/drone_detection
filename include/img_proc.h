@@ -26,8 +26,9 @@ typedef struct {
 /*
  * Image IO
  */
+#define DEFAULT_OUTPUT_DIR "output"
 image_t* image_load(const char* filename, enum CHANNELS channel);
-errno_t image_save_png(const char* filename, const image_t* img);
+errno_t image_save_jpg(const char* filename, const char* output_dir, const image_t* img);	// filename of saved output is the same
 image_t* image_create(uint16_t width, uint16_t height, enum CHANNELS channel);
 errno_t image_free(image_t* img);
 

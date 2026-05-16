@@ -24,7 +24,6 @@ all: prepare $(TARGET)
 prepare:
 	@mkdir -p $(BIN_DIR)
 	@mkdir -p $(OBJ_SUBDIRS)
-	@mkdir -p $(OUTPUT_DIR)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
@@ -41,8 +40,20 @@ run: $(TARGET)
 test: $(TARGET)
 	./$(TARGET) $(TEST_IMG_PATH)
 
-show: $(TARGET) $(OUTPUT_DIR)/*
-	open $(OUTPUT_DIR)/*
+custom_run: prepare $(TARGET)
+	@echo "Batch processing from '$(INPUT_DIR)'..."
+	@for file in $(wildcard $(INPUT_DIR)/*); do \
+		if [ -f "$$file" ]; then \
+			case "$$file" in \
+					*.jpg|*.png) \
+				$(TARGET) -i "$$file" $(ARGS) $(FLAGS) -o $(OUTPUT_DIR) \
+				;; \
+			esac \
+		fi \
+	done
+	@echo "Batch processing finished! ffmpeg ..."
+	ffmpeg -framerate 24 -i $(OUTPUT_DIR)/%d.jpg -c:v libx264 -pix_fmt yuv420p $(OUTPUT_VIDEONAME)
+	@echo "Video might be glued"
 
 clean:
 	rm -f $(OBJ_DIR)/*.o

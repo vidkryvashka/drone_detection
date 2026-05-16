@@ -19,7 +19,8 @@
 
 
 typedef struct {
-	char filepath[128];
+	char input_filepath[128];
+	char output_dir[128];
 	uint8_t fast9_threshold;
 	uint8_t dim_coef;
 } main_args_t;

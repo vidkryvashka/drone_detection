@@ -13,17 +13,17 @@ int main(int argc, char **argv) {
 		return EINVAL;
 	}
 
-	image_t* img = image_load(main_args.filepath, GRAY);
+	image_t* img = image_load(main_args.input_filepath, GRAY);
 	if (!img) {
-		fprintf(stderr, "could not image_load\n");
+		ddloge(TAG, "could not image_load %s", main_args.input_filepath);
 		return EINVAL;
 	}
 
 	vector_t *pts = fast9(img, main_args.fast9_threshold);
 	place_points_on_img(img, pts, main_args.dim_coef);
 
-	if (image_save_png(main_args.filepath, img) == OK) {
-		ddlogi(TAG, "\033[0;32mSuccess!\033[0;0m");
+	if (image_save_jpg(main_args.input_filepath, main_args.output_dir, img) == OK) {
+		// ddlogi(TAG, "\033[0;32mSuccess!\033[0;0m");
 	} else {
 		ddloge(TAG, "Failed to save image");
 	}
