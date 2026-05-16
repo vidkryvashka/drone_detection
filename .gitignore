@@ -6,4 +6,5 @@ test/
 trash/
 compile_commands.json
 .cache
+output/
 output.png

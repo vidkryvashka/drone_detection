@@ -1,6 +1,5 @@
 CompileFlags:
   Add: [
     "-Iinclude",
-    "-Iinclude/foreign",
     "-I/opt/homebrew/include",
   ]

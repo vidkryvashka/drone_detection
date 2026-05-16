@@ -12,6 +12,8 @@ SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
 TARGET = $(BIN_DIR)/program
+OUTPUT_DIR = output
+TEST_IMG_PATH = trash/old_images/raw/mavic_in_bush.png
 
 SRCS = $(shell find $(SRC_DIR) -name "*.c")
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
@@ -22,6 +24,7 @@ all: prepare $(TARGET)
 prepare:
 	@mkdir -p $(BIN_DIR)
 	@mkdir -p $(OBJ_SUBDIRS)
+	@mkdir -p $(OUTPUT_DIR)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
@@ -36,10 +39,10 @@ run: $(TARGET)
 	./$(TARGET)
 
 test: $(TARGET)
-	./$(TARGET) trash/old_images/raw/mavic_in_bush.png
+	./$(TARGET) $(TEST_IMG_PATH)
 
-show: $(TARGET) output.png
-	open output.png
+show: $(TARGET) $(OUTPUT_DIR)/*
+	open $(OUTPUT_DIR)/*
 
 clean:
 	rm -f $(OBJ_DIR)/*.o
