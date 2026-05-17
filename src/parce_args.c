@@ -1,4 +1,5 @@
 #include <getopt.h>
+#include <iso646.h>
 #include <sys/errno.h>
 #include <sys/stat.h>
 #include <string.h>
@@ -13,8 +14,8 @@
 static void print_help() {
 	printf("\
 version %s\n\
--i --input <char *filename>\timage file path, default in Makefile\n\
--i --output_dir <char *output_dir>\tfolder for outputs\n\
+-i --input <char *>\timage file or directory containing images path, default in Makefile\n\
+-i --output_dir <char *>\tfolder for outputs\n\
 -t --threshold <uint8_t>\tfast9 threshold, \tdefault %d\n\
 -d --dim-coef <uint8_t>\t\t0 - %d value, 0 is black img output, points only, default %d\n\
 -h --help\n\
@@ -24,39 +25,54 @@ examples:\n\
 		VERSION, DEFAULT_THRESHOLD, MAX_DIM_COEF, DEAFAULT_DIM_COEF);
 }
 
-uint8_t directory_exists(const char *path) {
+/**
+ * @brief returns 1 if file exists, 2 if dir, 0 if noone
+ * 
+ * @param path <char *> filename or dirname
+ */
+static enum IO_MODES file_or_dir_exists(
+	const char *path
+) {
 	if (!path)
-		return 0;
+		return not_selected;
+
 	struct stat stats;
 	
 	if (stat(path, &stats) != 0)
-		return 0; 
+		return not_selected;
 
-	return S_ISDIR(stats.st_mode);
+	if (S_ISREG(stats.st_mode))
+		return single_img_file;
+
+	if (S_ISDIR(stats.st_mode))
+		return input_img_dir;
+	
+	return 0;
 }
 
-errno_t parse_main_args(
+errno_t parse_conf(
 	int argc, char **argv,
-	main_args_t *main_args
+	config_t *conf
 ) {
 	if (argc < 2) {
 		print_help();
 		return EINVAL;
 	}
 
-	bzero(main_args, sizeof(*main_args));
-	main_args->fast9_threshold = DEFAULT_THRESHOLD;
-	main_args->dim_coef = DEAFAULT_DIM_COEF;
-	snprintf(main_args->output_dir, sizeof(main_args->output_dir), "%s", DEFAULT_OUTPUT_DIR);
+	bzero(conf, sizeof(*conf));
+	conf->fast9_threshold = DEFAULT_THRESHOLD;
+	conf->dim_coef = DEAFAULT_DIM_COEF;
 
 	if (argc > 1 && argv[1][0] != '-') {
-		snprintf(main_args->input_filepath, sizeof(main_args->input_filepath), "%s", argv[1]);
+		snprintf(conf->input_filepath, sizeof(conf->input_filepath), "%s", argv[1]);
+		snprintf(conf->output_dir, sizeof(conf->output_dir), "%s", DEFAULT_OUTPUT_DIR);
+		conf->io_mode = single_img_file;
 		return OK;
 	}
 
 	struct option longopts[] = {
 		{"input", required_argument, NULL, 'i'},
-		{"output_dir", required_argument, NULL, 'o'},
+		{"output-dir", required_argument, NULL, 'o'},
 		{"threshold", required_argument, NULL, 't'},
 		{"dim-coef", required_argument, NULL, 'd'},
 		{"help", no_argument, NULL, 'h'},
@@ -74,57 +90,78 @@ errno_t parse_main_args(
 		longopts,
 		&longindex)) != -1
 	) {
-		// ddlogi(TAG, "opt: %c optarg: %s", opt, optarg);
+		// ddlogi(TAG, "opt:%c optarg:%s", opt, optarg);	// dbg
 		switch (opt) {
 		case 'i':
-			// ddlogi(TAG, "case -i %s", optarg);
-			snprintf(main_args->input_filepath, sizeof(main_args->input_filepath), "%s", optarg);
+			switch (file_or_dir_exists(optarg)) {
+			case single_img_file:
+				snprintf(conf->input_filepath, sizeof(conf->input_filepath), "%s", optarg);
+				conf->io_mode = single_img_file;
+				break;
+			case input_img_dir:
+				snprintf(conf->input_img_dir, sizeof(conf->input_img_dir), "%s", optarg);
+				conf->io_mode = input_img_dir;
+				break;
+			case not_selected:
+				ddloge(TAG, "input file/dir %s does not exist", optarg);
+				break;
+			default:
+				ddloge(TAG, "impossible case default, %s", optarg);
+				return EINVAL;
+			}
+			// ddlogi(TAG, "io_mode %d", conf->io_mode);
 			break;
 		case 'o':
-			// ddlogi(TAG, "case -o %s", optarg);
-			if (!directory_exists(optarg)) {
-				ddlogw(TAG, "Directory %s does not exist, creating..", optarg);
-    			if (mkdir(optarg, 0777) == -1) {
-        			ddloge(TAG, "Error creating directory");
-           			return ENOMEM;
-       			}
+			switch (file_or_dir_exists(optarg)) {
+			case 1:
+				ddloge(TAG, "file %s exists insteed of directory, can't create", optarg);
+				break;
+			case 0:
+				if (mkdir(optarg, 0777) == -1) {
+					ddloge(TAG, "Error creating directory");
+					return ENOMEM;
+				}
+				ddlogw(TAG, "Directory %s does not exist, created", optarg);
+			case 2:
+				snprintf(conf->output_dir, sizeof(conf->output_dir), "%s", optarg);
+				break;
+			default:
+				ddloge(TAG, "impossible case default, %s", optarg);
+				return EINVAL;
 			}
-			snprintf(main_args->output_dir, sizeof(main_args->output_dir), "%s", optarg);
 			break;
 		case 't':
-			// ddlogi(TAG, "case -t %s", optarg);
 			endptr = NULL;
 			val = strtol(optarg, &endptr, 10);
 			if (endptr == optarg || val < 0 || val > 255) {
 				ddloge(TAG, "Invalid fast9_threshold value: %s", optarg);
 				break;
 			}
-			main_args->fast9_threshold = (uint8_t)val;
+			conf->fast9_threshold = (uint8_t)val;
 			break;
 		case 'd':
-			// ddlogi(TAG, "case -d %s", optarg);
 			endptr = NULL;
 			val = strtol(optarg, &endptr, 10);
 			if (endptr == optarg || val < 0 || val > 255) {
 				ddloge(TAG, "Invalid fast9_threshold value: %s", optarg);
 				break;
 			}
-			main_args->dim_coef = (uint8_t)val;
+			conf->dim_coef = (uint8_t)val;
 			break;
 		case 'h':
 			print_help();
 			exit(0);
 		case 0:
-			ddloge(TAG, "long options not supported, --%s", optarg);
+			ddloge(TAG, "long option --%s not supported", optarg);
 			break;
 		case ':':
-			ddlogi(TAG, "option -%c needs a value\n", optopt);
+			ddloge(TAG, "option -%c needs a value\n", optopt);
 			break;
 		case '?':
-			ddlogi(TAG, "unknown option -%c", optopt);
+			ddloge(TAG, "unknown option -%c", optopt);
 			break;
 		default:
-			ddlogi(TAG, "case default, impossible, mb excessive letter in shortopts[]");
+			ddlogw(TAG, "case default, impossible, mb excessive letter in shortopts[]");
 		}
 	}
 
@@ -134,18 +171,18 @@ errno_t parse_main_args(
 		return EINVAL;
 	}
 
-	if (!main_args->input_filepath[0]) {
-		ddloge(TAG, "main_args->input_filepath empty");
-		return -1;
+	if (!conf->input_filepath[0] && !conf->input_img_dir[0]) {
+		ddloge(TAG, "couldn't choose input");
+		return EINVAL;
 	}
 
-	if (!main_args->output_dir[0]) {
-		snprintf(main_args->output_dir, sizeof(main_args->output_dir), "%s", "output");
-		return -1;
+	if (!conf->output_dir[0]) {
+		snprintf(conf->output_dir, sizeof(conf->output_dir), "%s", DEFAULT_OUTPUT_DIR);
+		ddlogw(TAG, "output_dir set default %s", conf->output_dir);
 	}
 
-	if (main_args->fast9_threshold < main_args->dim_coef)
-		ddlogw(TAG, "In case you could blunderЖ t: %d d: %d", main_args->fast9_threshold, main_args->dim_coef);
+	if (conf->fast9_threshold < conf->dim_coef)
+		ddlogw(TAG, "In case you could blunder: threshold: %d dim_coef: %d", conf->fast9_threshold, conf->dim_coef);
 
 	return OK;
 }

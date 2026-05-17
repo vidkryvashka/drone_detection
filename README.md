@@ -15,8 +15,8 @@ bear -- make # helps to setup clang lints
 ```
 examples:
 ```sh
-	$ binary -i expl.png -t 70 -d 3
-	$ binary expl.png
+$ binary -i expl.png -t 70 -d 3
+$ binary expl.png
 ```
 
 For now main case is to have a folder INPUT_DIR with images aka 1.jpg, 2.jpg, ...

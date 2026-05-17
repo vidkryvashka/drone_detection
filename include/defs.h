@@ -2,7 +2,9 @@
 #define DEFS_H
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <stdint.h>
+#include <stdbool.h>
 #include <errno.h>
 #define	OK 0
 
@@ -18,16 +20,28 @@
 	printf(_ddtag "\033[31m" "error " "\033[0m" "%s: " _ddmsg "\n", __func__, ##__VA_ARGS__)
 
 
+enum IO_MODES {
+	not_selected,
+	single_img_file,
+	input_img_dir,
+};
+
 typedef struct {
 	char input_filepath[128];
+	char input_img_dir[128];
 	char output_dir[128];
 	uint8_t fast9_threshold;
 	uint8_t dim_coef;
-} main_args_t;
+	enum IO_MODES io_mode;
+} config_t;
 
-errno_t parse_main_args(
+errno_t parse_conf(
 	int argc, char **argv,
-	main_args_t *main_args
+	config_t *conf
+);
+
+errno_t apply_io_mode(
+	const config_t *conf
 );
 
 #endif

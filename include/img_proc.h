@@ -11,7 +11,7 @@ typedef struct {
 } pixel_coord_t;
 
 enum CHANNELS {
-	GRAY = 1,
+	GRAY = 1,	// mostly used
 	RGB = 3,
 	RGBA = 4
 };
