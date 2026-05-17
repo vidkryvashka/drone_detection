@@ -19,6 +19,10 @@
 #define ddloge(_ddtag, _ddmsg, ...)	\
 	printf(_ddtag "\033[31m" "error " "\033[0m" "%s: " _ddmsg "\n", __func__, ##__VA_ARGS__)
 
+#define STR_MAX_LEN 127
+typedef struct {
+	char name[STR_MAX_LEN + 1]; // +1 для нуль-термінатора '\0'
+} str_t;
 
 enum IO_MODES {
 	not_selected,
@@ -27,12 +31,14 @@ enum IO_MODES {
 };
 
 typedef struct {
-	char input_filepath[128];
-	char input_img_dir[128];
-	char output_dir[128];
+	char input_filepath[STR_MAX_LEN + 1];
+	char input_img_dir[STR_MAX_LEN + 1];
+	char output_dir[STR_MAX_LEN + 1];
 	uint8_t fast9_threshold;
 	uint8_t dim_coef;
 	enum IO_MODES io_mode;
+	uint16_t frame_width;
+	uint16_t frame_height;
 } config_t;
 
 errno_t parse_conf(
@@ -41,7 +47,7 @@ errno_t parse_conf(
 );
 
 errno_t apply_io_mode(
-	const config_t *conf
+	config_t *conf
 );
 
 #endif

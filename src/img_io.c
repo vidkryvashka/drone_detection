@@ -57,7 +57,8 @@ image_t* image_create(
 errno_t image_save_jpg(
 	const char* input_filepath,
 	const char* output_dir,
-	const image_t* img
+	const image_t* img,
+	const bool enable_print_save
 ) {
 	if (!img || !img->pixels || !input_filepath || !output_dir) {
 		ddloge(TAG, "invalid arg");
@@ -79,7 +80,8 @@ errno_t image_save_jpg(
 	snprintf(custom_file_path, needed_size, "%s%s%s", output_dir, separator, pure_filename);
 
 	if (stbi_write_jpg(custom_file_path, img->width, img->height, img->channel, img->pixels, 0)) {
-		ddlogi(TAG, "saved to \033[0;32m%s\033[0;0m", custom_file_path);
+		if (enable_print_save)
+			ddlogi(TAG, "saved to \033[0;32m%s\033[0;0m", custom_file_path);
 		return OK;
 	}
 

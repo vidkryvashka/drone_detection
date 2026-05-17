@@ -1,6 +1,5 @@
-#include <stdio.h>
-
 #include "my_vector.h"
+#include "defs.h"
 
 #define TAG "my_vector "
 #define INIT_CAPACITY 8
@@ -11,7 +10,10 @@ vector_t* vector_create(
 	size_t sizeof_element
 ) {
 	vector_t* vec = (vector_t *)malloc(sizeof(vector_t));
-	if (!vec) return NULL;
+	if (!vec) {
+		ddloge(TAG, "couldn't malloc vector");
+		return NULL;
+	}
 
 	vec->data = calloc(INIT_CAPACITY, sizeof_element);
 	vec->size = 0;

@@ -3,21 +3,26 @@
 
 #define TAG "img_proc_tools"
 
-errno_t place_points_on_img(
+errno_t locate_keypoints_on_gray_img(
 	image_t *img,
-	vector_t *keypoints,
-	uint8_t brightness_coef
+	const vector_t *keypoints,
+	const uint8_t dim_coef,
+	const bool is_img_empty
 ) {
-	if (!img || !img->pixels || !keypoints) {
+	if (!img || !img->pixels || !keypoints || img->channel != GRAY) {
 		ddloge(TAG, "invalid args");
 		return EINVAL;
 	}
 
-	if (brightness_coef >= MAX_DIM_COEF)
-		ddlogw(TAG, "brightness_coef >= 8 (%d)", brightness_coef);
+	if (is_img_empty)
+		goto skip_dim;
+
+	if (dim_coef >= MAX_DIM_COEF)
+		ddlogw(TAG, "dim_coef >= 8 (%d)", dim_coef);
 	else
 		for (size_t i = 0; i < img->width * img->height; i++)
-			img->pixels[i] = (uint8_t)(img->pixels[i] * brightness_coef / MAX_DIM_COEF);
+			img->pixels[i] = (uint8_t)(img->pixels[i] * dim_coef / MAX_DIM_COEF);
+skip_dim:
 
 	for (size_t i = 0; i < keypoints->size; i++) {
 		pixel_coord_t* p = vector_get(keypoints, i);
@@ -26,16 +31,3 @@ errno_t place_points_on_img(
 	}
 	return OK;
 }
-
-// vector_t *test_paint_diagonal_points_test(
-// 	image_t *img
-// ) {
-// 	vector_t* pts = vector_create(sizeof(pixel_coord_t));
-// 	if (!pts)
-// 		return NULL;
-// 	for (uint16_t i = 0; i < 100; i++) {
-// 		pixel_coord_t p = {i * 5, i * 5};
-// 		vector_push_back(pts, &p);
-// 	}
-// 	return pts;
-// }

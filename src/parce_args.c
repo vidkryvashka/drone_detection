@@ -50,6 +50,16 @@ static enum IO_MODES file_or_dir_exists(
 	return 0;
 }
 
+static void set_default_conf(
+	config_t *conf
+) {
+	bzero(conf, sizeof(*conf));
+	conf->fast9_threshold = DEFAULT_THRESHOLD;
+	conf->dim_coef = DEAFAULT_DIM_COEF;
+	conf->frame_width = 0;
+	conf->frame_height = 0;
+}
+
 errno_t parse_conf(
 	int argc, char **argv,
 	config_t *conf
@@ -59,9 +69,7 @@ errno_t parse_conf(
 		return EINVAL;
 	}
 
-	bzero(conf, sizeof(*conf));
-	conf->fast9_threshold = DEFAULT_THRESHOLD;
-	conf->dim_coef = DEAFAULT_DIM_COEF;
+	set_default_conf(conf);
 
 	if (argc > 1 && argv[1][0] != '-') {
 		snprintf(conf->input_filepath, sizeof(conf->input_filepath), "%s", argv[1]);

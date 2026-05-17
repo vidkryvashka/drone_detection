@@ -40,24 +40,12 @@ run: $(TARGET)
 test: $(TARGET)
 	./$(TARGET) $(TEST_IMG_PATH)
 
-custom_run: prepare $(TARGET)
-	@echo "Batch processing from '$(INPUT_DIR)'..."
-	@for file in $(wildcard $(INPUT_DIR)/*); do \
-		if [ -f "$$file" ]; then \
-			case "$$file" in \
-					*.jpg|*.png) \
-				$(TARGET) -i "$$file" $(ARGS) $(FLAGS) -o $(OUTPUT_DIR) \
-				;; \
-			esac \
-		fi \
-	done
-	@echo "Batch processing finished! ffmpeg ..."
-	ffmpeg -framerate 24 -i $(OUTPUT_DIR)/%d.jpg -c:v libx264 -pix_fmt yuv420p $(OUTPUT_VIDEONAME)
-	@echo "Video might be glued"
-
 clean:
 	rm -f $(OBJ_DIR)/*.o
 	rm -rf $(BIN_DIR)/*
+
+clean_output:
+	rm output/*
 
 .PHONY: all prepare clean run
 

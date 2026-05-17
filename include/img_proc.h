@@ -28,7 +28,7 @@ typedef struct {
  */
 #define DEFAULT_OUTPUT_DIR "output"
 image_t* image_load(const char* filename, enum CHANNELS channel);
-errno_t image_save_jpg(const char* filename, const char* output_dir, const image_t* img);	// filename of saved output is the same
+errno_t image_save_jpg(const char* filename, const char* output_dir, const image_t* img, const bool enable_print_save);	// filename of saved output is the same
 image_t* image_create(uint16_t width, uint16_t height, enum CHANNELS channel);
 errno_t image_free(image_t* img);
 
@@ -47,16 +47,17 @@ errno_t image_free(image_t* img);
 
 
 /**
- * @brief place_points_on_img exactly
+ * @brief locate_keypoints_on_gray_img exactly
  * 
  * @param image image_t* would be nice if grey
  * @param keypoints vector* <pixel_coord_t> with information
  * @param brightness_coef uint8_t	0 - MAX_DIM_COEF brightness lvl for original pixels
  */
-errno_t place_points_on_img(
+errno_t locate_keypoints_on_gray_img(
 	image_t *img,
-	vector_t *keypoints,
-	uint8_t brightness_coef
+	const vector_t *keypoints,
+	const uint8_t brightness_coef,
+	const bool is_img_empty
 );
 
 /**
