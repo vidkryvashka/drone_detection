@@ -21,7 +21,7 @@
 
 #define STR_MAX_LEN 127
 typedef struct {
-	char name[STR_MAX_LEN + 1]; // +1 для нуль-термінатора '\0'
+	char name[STR_MAX_LEN + 1]; // +1 for '\0'
 } str_t;
 
 enum IO_MODES {
@@ -49,5 +49,20 @@ errno_t parse_conf(
 errno_t apply_io_mode(
 	config_t *conf
 );
+
+#define PROGRESS_BAR_WIDTH 50
+/**
+ * @brief should be called inside some heavy loop
+ */
+void print_progress_bar(
+	const char *prefix,
+	const size_t current,
+	const size_t total
+);
+
+/**
+ * @brief safe interrupt to print error without progress bar crash
+ */
+void progress_bar_interrupt();
 
 #endif

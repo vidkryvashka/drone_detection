@@ -27,10 +27,27 @@ typedef struct {
  * Image IO
  */
 #define DEFAULT_OUTPUT_DIR "output"
-image_t* image_load(const char* filename, enum CHANNELS channel);
-errno_t image_save_jpg(const char* filename, const char* output_dir, const image_t* img, const bool enable_print_save);	// filename of saved output is the same
-image_t* image_create(uint16_t width, uint16_t height, enum CHANNELS channel);
-errno_t image_free(image_t* img);
+image_t* image_load(
+	const char* filename,
+	const enum CHANNELS channel
+);
+
+errno_t image_save_jpg(
+	const char* filename,		// filename of saved output is the same
+	const char* output_dir,
+	const image_t* img,
+	const bool enable_print_save
+);
+
+image_t* image_create(
+	const uint16_t width,
+	const uint16_t height,
+	const enum CHANNELS channel
+);
+
+errno_t image_free(
+	image_t* img
+);
 
 #define DEFAULT_THRESHOLD 70
 #define DEAFAULT_DIM_COEF 3

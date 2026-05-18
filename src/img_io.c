@@ -10,7 +10,7 @@
 
 image_t* image_load(
 	const char* filepath,
-	enum CHANNELS channel
+	const enum CHANNELS channel
 ) {
 	image_t* img = malloc(sizeof(image_t));
 	img->pixels = stbi_load(filepath, (int*)&img->width, (int*)&img->height, (int*)&img->channel, channel);
@@ -26,9 +26,9 @@ image_t* image_load(
 
 
 image_t* image_create(
-	uint16_t width,
-	uint16_t height,
-	enum CHANNELS channel
+	const uint16_t width,
+	const uint16_t height,
+	const enum CHANNELS channel
 ) {
 	image_t* img = (image_t*)malloc(sizeof(image_t));
 	if (!img) {
@@ -51,6 +51,36 @@ image_t* image_create(
 	}
 
 	return img;
+}
+
+
+errno_t locate_keypoints_on_gray_img(
+	image_t *img,
+	const vector_t *keypoints,
+	const uint8_t dim_coef,
+	const bool is_img_empty
+) {
+	if (!img || !img->pixels || !keypoints || img->channel != GRAY) {
+		ddloge(TAG, "invalid args");
+		return EINVAL;
+	}
+
+	if (is_img_empty)
+		goto skip_dim;
+
+	if (dim_coef >= MAX_DIM_COEF)
+		ddlogw(TAG, "dim_coef >= 8 (%d)", dim_coef);
+	else
+		for (size_t i = 0; i < img->width * img->height; i++)
+			img->pixels[i] = (uint8_t)(img->pixels[i] * dim_coef / MAX_DIM_COEF);
+skip_dim:
+
+	for (size_t i = 0; i < keypoints->size; i++) {
+		pixel_coord_t* p = vector_get(keypoints, i);
+		if (p->x < img->width && p->y < img->height)
+			img->pixels[p->y * img->width + p->x] = 255;
+	}
+	return OK;
 }
 
 
@@ -88,7 +118,6 @@ errno_t image_save_jpg(
 	ddloge(TAG, "couldn't stbi_write_jpg %s", custom_file_path);
 	return EIO;
 }
-
 
 
 errno_t image_free(

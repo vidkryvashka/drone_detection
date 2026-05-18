@@ -1,7 +1,4 @@
-#include <stdio.h>
 #include "defs.h"
-#include "img_proc.h"
-#include "my_vector.h"
 
 
 #define TAG "main "
@@ -15,5 +12,5 @@ int main(int argc, char **argv) {
 
 	apply_io_mode(&conf);
 
-	return 0;
+	return OK;
 }
