@@ -13,6 +13,7 @@ OBJ_DIR = obj
 BIN_DIR = bin
 TARGET = $(BIN_DIR)/program
 TEST_IMG_PATH = trash/old_images/raw/mavic_in_bush.png
+DEFAULT_OUTPUT_DIR = output
 
 SRCS = $(shell find $(SRC_DIR) -name "*.c")
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
@@ -23,6 +24,7 @@ all: prepare $(TARGET)
 prepare:
 	@mkdir -p $(BIN_DIR)
 	@mkdir -p $(OBJ_SUBDIRS)
+	@mkdir -p $(DEFAULT_OUTPUT_DIR)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)

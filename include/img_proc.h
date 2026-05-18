@@ -64,17 +64,43 @@ errno_t image_free(
 
 
 /**
- * @brief locate_keypoints_on_gray_img exactly
+ * @brief accepts 0 - 255 colors and packs into single uint32_t
+ */
+#define COLOR_RGBA_ENCODE(r, g, b, a) \
+	(((uint32_t)(r) << 24) | ((uint32_t)(g) << 16) | ((uint32_t)(b) << 8) | (uint32_t)(a))
+
+/**
+ * @brief accepts 0 - 255 colors and packs into single uint32_t with maximum alpha channel
+ */
+#define COLOR_RGB_ENCODE(r, g, b) COLOR_RGBA_ENCODE(r, g, b, 255)
+
+#define COLOR_R_DECODE(color) (((color) >> 24) & 0xFF)
+#define COLOR_G_DECODE(color) (((color) >> 16) & 0xFF)
+#define COLOR_B_DECODE(color) (((color) >> 8)  & 0xFF)
+#define COLOR_A_DECODE(color) ((color)         & 0xFF)
+
+/**
+ * @brief locate_keypoints_on_img exactly
  * 
  * @param image image_t* would be nice if grey
  * @param keypoints vector* <pixel_coord_t> with information
  * @param brightness_coef uint8_t	0 - MAX_DIM_COEF brightness lvl for original pixels
+ * @param color uint32_t in case channel GRAY: alfa is used as brightness lvl
+ * @param is_img_empty bool in case there is no sense to dim, just optimization
  */
-errno_t locate_keypoints_on_gray_img(
+errno_t locate_keypoints_on_img(
 	image_t *img,
 	const vector_t *keypoints,
 	const uint8_t brightness_coef,
+	const uint32_t color,
 	const bool is_img_empty
+);
+
+errno_t locate_single_point_on_img(
+	image_t *img,
+	const pixel_coord_t pixel_coord,
+	const uint32_t color,
+	const uint16_t radius_px
 );
 
 /**

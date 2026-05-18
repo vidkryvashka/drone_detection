@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <sys/_types/_errno_t.h>
 #include <time.h>
 #include <dirent.h>
 #include <string.h>
@@ -12,7 +13,7 @@
 
 
 
-static errno_t process_one_image(
+static errno_t primitive_process_one_image(
 	const config_t *conf
 ) {
 	image_t* img = image_load(conf->input_filepath, GRAY);
@@ -21,7 +22,8 @@ static errno_t process_one_image(
 		return EINVAL;
 	}
 	vector_t *kpts = fast9(img, conf->fast9_threshold);
-	locate_keypoints_on_gray_img(img, kpts, conf->dim_coef, 0);
+	locate_keypoints_on_img(img, kpts, conf->dim_coef, 255, 0);
+	// locate_single_point_on_img(img, (pixel_coord_t){.x = 30, .y = 20}, 255, 10);
 
 	if (image_save_jpg(conf->input_filepath, conf->output_dir, img, 1) != OK)
 		ddloge(TAG, "failed to save image");
@@ -181,20 +183,48 @@ static errno_t save_frames_keypoints_to_imgs(
 		
 		image_t *img = image_create(conf->frame_width, conf->frame_height, GRAY);
 		if (!img) {
-			progress_bar_interrupt(); // <--- Захист бару від зсуву!
+			progress_bar_interrupt();
 			ddloge(TAG, "failed to create image for frame %zu", i + 1);
 			return -1;
 		}
 		vector_t *kpts = *(vector_t**)vector_get(frames_kpts, i);
 		if (kpts) {
-			locate_keypoints_on_gray_img(img, kpts, 0, 1);
+			locate_keypoints_on_img(img, kpts, 0, 255, 1);
 		}
 		image_save_jpg(new_filename, conf->output_dir, img, 0);
-		image_free(img); 
+		image_free(img);
 	}
 	double cpu_time_used_ms = ((double) (clock() - start)) / CLOCKS_PER_SEC * 1000;
 	printf(" %.0f ms\n", cpu_time_used_ms);
 	return OK;	// hope so
+}
+
+
+static errno_t images_to_video(
+	const char *output_img_dir,
+	const char *output_dir
+) {
+	if (!output_img_dir || !output_dir) {
+		return EINVAL;
+	}
+
+	char cmd[STR_MAX_LEN * 3 + 1];
+	
+	int written = snprintf(cmd, sizeof(cmd), 
+		"ffmpeg -framerate 24 -i \"%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p \"%s/dildo.mp4\" -y", 
+		output_img_dir, output_dir);
+
+	if (written < 0 || (size_t)written >= sizeof(cmd)) {
+		ddloge(TAG, "command buffer overflowed");
+		return ENOMEM;
+	}
+	
+	if (system(cmd) == -1) {
+		ddloge(TAG, "failed to execute ffmpeg command");
+		return EIO;
+	}
+
+	return OK;
 }
 
 
@@ -215,6 +245,8 @@ static errno_t process_img_dir(
 	if (!frames_kpts)
 		return -1;
 	save_frames_keypoints_to_imgs(frames_kpts, conf);
+
+	images_to_video(conf->output_dir, "output");
 
 	vector_destroy(filenames);
 	for (size_t i = 0; i < frames_kpts->size; i++) {
@@ -242,7 +274,7 @@ errno_t apply_io_mode(
 		ddloge(TAG, "io_mode not selected");
 		return EINVAL;
 	case single_img_file:
-		err = process_one_image(conf);
+		err = primitive_process_one_image(conf);
 		break;
 	case input_img_dir:
 		err = process_img_dir(conf);
