@@ -6,6 +6,8 @@
 
 #include "defs.h"
 
+#define VECTOR_DEFAULT_INIT_CAPACITY 8
+
 
 /**
  * @brief base vector struct inspired by std::vector
@@ -24,7 +26,7 @@ typedef struct {
  * @param sizeof_element was convinced to determine by sizeof()
  * @return vector_t* pointer, should be freed
  */
-vector_t* vector_create(const size_t sizeof_element);
+vector_t* vector_create(const size_t sizeof_element, size_t size);
 
 
 /**
@@ -54,7 +56,9 @@ errno_t vector_push_back(vector_t *vec, const void *element);
  * @param index 
  * @return void* pointer to wanted data
  */
-void* vector_get(const vector_t *vec, const size_t index);
+inline void* vector_get(const vector_t *vec, const size_t index) {
+	return (vec && index < vec->size)? (char*)vec->data + index * vec->sizeof_element : NULL;
+}
 
 
 /**

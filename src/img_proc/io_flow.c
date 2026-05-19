@@ -5,28 +5,44 @@
 #include <string.h>
 
 #include "defs.h"
-#include "img_proc.h"
+#include "img_defs.h"
+#include "img_io.h"
+#include "vision.h"
 #include "my_vector.h"
 
 
-#define TAG "my_io_flow "
+#define TAG "io_flow "
 
 
-
+/**
+ * @brief function for test and as example for fuhrther video stream implementation
+ */
 static errno_t primitive_process_one_image(
-	const config_t *conf
+	config_t *conf
 ) {
 	image_t* img = image_load(conf->input_filepath, GRAY);
 	if (!img) {
 		ddloge(TAG, "could not image_load %s", conf->input_filepath);
 		return EINVAL;
 	}
+	conf->frame_width = img->width;
+	conf->frame_height = img->height;
+
 	vector_t *kpts = fast9(img, conf->fast9_threshold);
-	locate_keypoints_on_img(img, kpts, conf->dim_coef, 255, 0);
-	// locate_single_point_on_img(img, (pixel_coord_t){.x = 30, .y = 20}, 255, 10);
+
+	if (image_gray_to_rgb(img) != OK) {
+		ddloge(TAG, "failed to convert image to RGB");
+		vector_destroy(kpts);
+	}
+
+	clusters_context_t cctx = dbscan(kpts, DBSCAN_MIN_CLUSTER_SIZE, conf);
+	locate_clusters_on_img(img, kpts, cctx.ids, cctx.centers, cctx.unique_count, conf->dim_coef, 0);
 
 	if (image_save_jpg(conf->input_filepath, conf->output_dir, img, 1) != OK)
 		ddloge(TAG, "failed to save image");
+
+	free(cctx.ids);
+	free(cctx.centers);
 	vector_destroy(kpts);
 	image_free(img);
 
@@ -88,7 +104,7 @@ static vector_t *get_filenames_from_dir(
 		return NULL;
 	}
 	struct dirent *de;
-	vector_t *filenames = vector_create(sizeof(str_t));
+	vector_t *filenames = vector_create(VECTOR_DEFAULT_INIT_CAPACITY, sizeof(str_t));
 	if (!filenames) {
 		ddloge(TAG, "couldn't vector_create");
 		goto gffd_cleanup_error;
@@ -126,7 +142,7 @@ static vector_t *generate_frames_keypoints(
 	const vector_t *filenames,
 	config_t *conf
 ) {
-	vector_t *frames_kpts = vector_create(sizeof(vector_t*));
+	vector_t *frames_kpts = vector_create(filenames->size, sizeof(vector_t*));
 	if (!frames_kpts) {
 		ddloge(TAG, "couldn't vector_create");
 		return NULL;
@@ -135,7 +151,6 @@ static vector_t *generate_frames_keypoints(
 	clock_t start = clock();
 	for (size_t i = 0; i < filenames->size; i++) {
 		print_progress_bar(__func__, i + 1, filenames->size);
-
 		str_t *filename = (str_t*)vector_get(filenames, i);
 		if (filename) {
 			char imgpath[STR_MAX_LEN + 1];
@@ -145,6 +160,8 @@ static vector_t *generate_frames_keypoints(
 			if (!img) {
 				progress_bar_interrupt();
 				ddloge(TAG, "could not image_load %s", imgpath);
+				vector_destroy(frames_kpts);
+				return NULL;
 			} else {
 				if (!conf->frame_width || !conf->frame_height) {
 					conf->frame_width = img->width;
@@ -181,20 +198,23 @@ static errno_t save_frames_keypoints_to_imgs(
 		char new_filename[STR_MAX_LEN + 1];
 		snprintf(new_filename, sizeof(new_filename), "%zu.jpg", i + 1);
 		
-		image_t *img = image_create(conf->frame_width, conf->frame_height, GRAY);
+		image_t *img = image_create(conf->frame_width, conf->frame_height, RGB);
 		if (!img) {
 			progress_bar_interrupt();
 			ddloge(TAG, "failed to create image for frame %zu", i + 1);
 			return -1;
 		}
 		vector_t *kpts = *(vector_t**)vector_get(frames_kpts, i);
+		
 		if (kpts) {
-			locate_keypoints_on_img(img, kpts, 0, 255, 1);
+			clusters_context_t cctx = dbscan(kpts, DBSCAN_MIN_CLUSTER_SIZE, conf);
+			locate_clusters_on_img(img, kpts, cctx.ids, cctx.centers, cctx.unique_count, 0, 1);
+			// locate_keypoints_on_img(img, kpts, 0, 255, 1);
 		}
 		image_save_jpg(new_filename, conf->output_dir, img, 0);
 		image_free(img);
 	}
-	double cpu_time_used_ms = ((double) (clock() - start)) / CLOCKS_PER_SEC * 1000;
+	double cpu_time_used_ms = ((double)(clock() - start)) / CLOCKS_PER_SEC * 1000;
 	printf(" %.0f ms\n", cpu_time_used_ms);
 	return OK;	// hope so
 }
@@ -246,14 +266,13 @@ static errno_t process_img_dir(
 		return -1;
 	save_frames_keypoints_to_imgs(frames_kpts, conf);
 
-	images_to_video(conf->output_dir, "output");
+	images_to_video(conf->output_dir, DEFAULT_OUTPUT_DIR);
 
 	vector_destroy(filenames);
 	for (size_t i = 0; i < frames_kpts->size; i++) {
 		vector_t *kpts = *(vector_t**)vector_get(frames_kpts, i);
 		vector_destroy(kpts);
 	}
-	vector_destroy(frames_kpts);
 	return OK;	// hope so
 }
 
@@ -282,7 +301,7 @@ errno_t apply_io_mode(
 	}
 
 	double cpu_time_used_ms = ((double) (clock() - start)) / CLOCKS_PER_SEC * 1000;
-	ddlogw(TAG, "took %.3f ms", cpu_time_used_ms);
+	ddlogi(TAG, "took %.3f ms", cpu_time_used_ms);
 
 	return err;
 }

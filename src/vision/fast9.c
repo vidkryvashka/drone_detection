@@ -2,10 +2,12 @@
  * @brief took from opencv and cleared from dependencies
  */
 
- 
 #include "defs.h"
 #include "my_vector.h"
-#include "img_proc.h"
+#include "img_defs.h"
+#include "vision.h"
+
+#define TAG "fast9 "
 
 
 static void makeOffsets(
@@ -2823,7 +2825,7 @@ static void fast9ComputeScores(
 	if (scores->capacity < num_corners)
 		vector_reserve(scores, num_corners);
 
-	for (i = 0; i < num_corners; ++i) {
+	for (i = 0; i < num_corners; i++) {
 		pixel_coord_t *p = vector_get(c, i);
 		uint8_t score = fast9CornerScore(gimg->pixels + w * p->y + p->x, pixel, threshold);
 		vector_set(scores, i, &score);
@@ -5827,7 +5829,7 @@ static void fastNonmaxSuppression(
 	 * (the corners are output in raster scan order). A beginning of -1 signifies
 	 * that there are no corners on that row. */
 	int16_t last_row = ((pixel_coord_t *)vector_get(c, num_corners - 1))->y;
-	vector_t *row_start = vector_create(sizeof(int));
+	vector_t *row_start = vector_create(VECTOR_DEFAULT_INIT_CAPACITY, sizeof(int));
 	vector_reserve(row_start, last_row+1);
 
 	for (i = 0; i < last_row + 1; i++) {
@@ -5880,7 +5882,7 @@ static void fastNonmaxSuppression(
 			for (;
 				((pixel_coord_t *)vector_get(c, point_above))->y < yy	&&
 				((pixel_coord_t *)vector_get(c, point_above))->x < xx;
-				point_above ++
+				point_above++
 			)
 				;
 
@@ -5888,7 +5890,7 @@ static void fastNonmaxSuppression(
 				j = point_above;
 				((pixel_coord_t *)vector_get(c, point_above))->y < yy	&&
 				((pixel_coord_t *)vector_get(c, point_above))->x <= xx+1;
-				++j
+				j++
 			) {
 				uint16_t x = ((pixel_coord_t *)vector_get(c, point_above))->x;
 				if (
@@ -5916,7 +5918,7 @@ static void fastNonmaxSuppression(
 				point_below < num_corners	&&
 				((pixel_coord_t *)vector_get(c, point_below))->y == yy+1	&&
 				((pixel_coord_t *)vector_get(c, point_below))->x < xx-1;
-				++ point_below
+				point_below++
 			)
 				;
 
@@ -5946,16 +5948,20 @@ static void fastNonmaxSuppression(
 
 
 vector_t* fast9(
-	const image_t *gimg,
+	const image_t *gray_img,
 	const uint8_t threshold
 ) {
-	vector_t *ct = vector_create(sizeof(pixel_coord_t));
-	fast9Detect(gimg, ct, threshold);
+	if (gray_img->channel != GRAY) {
+		ddloge(TAG, "accepts only GRAY channel image");
+		return NULL;
+	}
+	vector_t *ct = vector_create(VECTOR_DEFAULT_INIT_CAPACITY, sizeof(pixel_coord_t));
+	fast9Detect(gray_img, ct, threshold);
 
-	vector_t *scores = vector_create(sizeof(uint8_t));
-	fast9ComputeScores(gimg, ct, scores, threshold);
+	vector_t *scores = vector_create(VECTOR_DEFAULT_INIT_CAPACITY, sizeof(uint8_t));
+	fast9ComputeScores(gray_img, ct, scores, threshold);
 
-	vector_t *c = vector_create(sizeof(pixel_coord_t));
+	vector_t *c = vector_create(VECTOR_DEFAULT_INIT_CAPACITY, sizeof(pixel_coord_t));
 	fastNonmaxSuppression(ct, scores, c);
 
 	vector_destroy(ct);

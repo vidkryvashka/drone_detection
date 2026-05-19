@@ -6,10 +6,12 @@
 #include <unistd.h>
 
 #include "defs.h"
-#include "img_proc.h"
-
+#include "img_defs.h"
+#include "img_io.h"
+#include "vision.h"
 
 #define TAG "parce_args "
+
 
 static void print_help() {
 	printf("\
@@ -58,6 +60,7 @@ static void set_default_conf(
 	conf->dim_coef = DEAFAULT_DIM_COEF;
 	conf->frame_width = 0;
 	conf->frame_height = 0;
+	conf->is_test = false;
 }
 
 errno_t parse_conf(
@@ -105,6 +108,7 @@ errno_t parse_conf(
 			case single_img_file:
 				snprintf(conf->input_filepath, sizeof(conf->input_filepath), "%s", optarg);
 				conf->io_mode = single_img_file;
+				conf->is_test = true;
 				break;
 			case input_img_dir:
 				snprintf(conf->input_img_dir, sizeof(conf->input_img_dir), "%s", optarg);

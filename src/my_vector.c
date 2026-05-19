@@ -2,11 +2,10 @@
 #include "defs.h"
 
 #define TAG "my_vector "
-#define INIT_CAPACITY 8
-
 
 
 vector_t* vector_create(
+	size_t size,
 	size_t sizeof_element
 ) {
 	vector_t* vec = (vector_t *)malloc(sizeof(vector_t));
@@ -15,9 +14,9 @@ vector_t* vector_create(
 		return NULL;
 	}
 
-	vec->data = calloc(INIT_CAPACITY, sizeof_element);
+	vec->data = calloc(size, sizeof_element);
 	vec->size = 0;
-	vec->capacity = INIT_CAPACITY;
+	vec->capacity = size;
 	vec->sizeof_element = sizeof_element;
 
 	return vec;
@@ -59,7 +58,7 @@ errno_t vector_push_back(
 	}
 
 	if (vec->size >= vec->capacity) {
-		size_t new_capacity = (vec->capacity == 0) ? INIT_CAPACITY : vec->capacity * (vec->capacity * 3) / 2;
+		size_t new_capacity = (vec->capacity == 0) ? VECTOR_DEFAULT_INIT_CAPACITY : vec->capacity * (vec->capacity * 3) / 2;
 		if (vector_reserve(vec, new_capacity))
 			return ENOMEM;
 	}
@@ -69,15 +68,6 @@ errno_t vector_push_back(
 	vec->size++;
 
 	return OK;
-}
-
-
-void* vector_get(
-	const vector_t *vec,
-	const size_t index
-) {
-	if (!vec || index >= vec->size) return NULL;
-		return (char*)vec->data + index * vec->sizeof_element;
 }
 
 

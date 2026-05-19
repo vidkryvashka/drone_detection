@@ -39,6 +39,7 @@ typedef struct {
 	enum IO_MODES io_mode;
 	uint16_t frame_width;
 	uint16_t frame_height;
+	bool is_test;
 } config_t;
 
 errno_t parse_conf(

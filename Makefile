@@ -1,19 +1,19 @@
 CC = clang
 CXX = clang++
 
-CFLAGS_W = -Wall -Wno-unused-variable -Wno-unused-function -Wno-pointer-arith
-CFLAGS_I = -Iinclude
-CFLAGS = $(CFLAGS_W) $(CFLAGS_I) -O2
-
-# platform dependent
-LDFLAGS  = -lm -lpthread -ldl
-
 SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
 TARGET = $(BIN_DIR)/program
 TEST_IMG_PATH = trash/old_images/raw/mavic_in_bush.png
 DEFAULT_OUTPUT_DIR = output
+
+CFLAGS_W = -Wall -Wno-unused-variable -Wno-unused-function -Wno-pointer-arith
+CFLAGS_I = -Iinclude
+CFLAGS = $(CFLAGS_W) $(CFLAGS_I) -DDEFAULT_OUTPUT_DIR=\"$(DEFAULT_OUTPUT_DIR)\" -O2
+
+# platform dependent
+LDFLAGS  = -lm -lpthread -ldl
 
 SRCS = $(shell find $(SRC_DIR) -name "*.c")
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
