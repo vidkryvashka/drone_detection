@@ -5,6 +5,13 @@
 #include "my_vector.h"
 #include "img_defs.h"
 
+typedef struct {
+	uint16_t frame_width;
+	uint16_t frame_height;
+	uint16_t dbscan_max_distance_img_diagonal_percent;
+	uint8_t fast9_threshold;
+} vision_conf_t;
+
 #define DEFAULT_THRESHOLD 60
 // #define START_THRESHOLD 120
 // #define EDGE_THRESHOLD 31
@@ -19,23 +26,9 @@ vector_t* fast9(
 	const uint8_t threshold
 );
 
-/**
- * @brief Performs DBSCAN clustering and returns cluster centers
- * @param pixels_cloud Input data (point coordinates)
- * @param epsilon Maximum distance between points in the same cluster
- * @param min_points Minimum number of points to form a cluster
- * @param cluster_centers_out Clustering result (includes cluster centers)
- * @return OK on success, otherwise ESP_FAIL
- */
-errno_t dbscan_old(
-    pixels_cloud_t *pixels_cloud,
-    const uint16_t epsilon,
-    const uint16_t min_points,
-    vector_t *cluster_centers_out
-);
 
-
-#define DBSCAN_MAX_DISTANCE 25	// min 2D distance between points to attribute the point to the cluster
+// #define DBSCAN_MAX_DISTANCE 25	// min 2D distance between points to attribute the point to the cluster
+#define DEFAULT_DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT 8	// min 2D distance between points to attribute the point to the cluster
 #define DBSCAN_MIN_CLUSTER_SIZE 3	// min points number in cluster
 #define DBSCAN_CLUSTER_UNCLASSIFIED 255
 #define DBSCAN_NOISE 254
@@ -52,7 +45,8 @@ typedef struct {
 clusters_context_t dbscan(
 	const vector_t *keypoints,
 	const uint16_t min_points,
-	const config_t *conf
+	vision_conf_t *vconf,
+	bool is_test
 );
 
 #endif

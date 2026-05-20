@@ -2,6 +2,7 @@
 #include <math.h>
 #include <stdint.h>
 #include <stdlib.h>
+#include <string.h>
 
 #include "defs.h"
 #include "img_defs.h"
@@ -14,7 +15,7 @@
 static errno_t get_neighbors(
 	const vector_t *keypoints,
 	const size_t index,
-	const uint8_t max_distance,
+	const uint16_t max_distance,
 	vector_t *neighbors
 ) {
 	pixel_coord_t *point = (pixel_coord_t*)vector_get(keypoints, index);
@@ -43,7 +44,7 @@ static errno_t get_neighbors(
 
 static errno_t expand_cluster(
 	const size_t index,
-	const uint8_t max_distance,
+	const uint16_t max_distance,
 	const uint16_t min_points,
 	const vector_t *keypoints,
 	clusters_context_t *cctx
@@ -106,12 +107,21 @@ static errno_t expand_cluster(
 }
 
 
-#include <string.h>
+typedef struct {
+	uint32_t sum_x;
+	uint32_t sum_y;
+	uint32_t count;
+	uint16_t min_x;
+	uint16_t max_x;
+	uint16_t min_y;
+	uint16_t max_y;
+} cluster_stat_t;
 
-errno_t calculate_and_filter_cluster_centers(
+static errno_t calculate_and_filter_cluster_centers(
 	clusters_context_t *cctx,
 	const vector_t *keypoints,
-	const config_t *conf
+	const vision_conf_t *vconf,
+	bool is_test
 ) {
 	if (!keypoints || !cctx || cctx->unique_count == 0 || !cctx->ids) {
 		return EINVAL;
@@ -122,89 +132,74 @@ errno_t calculate_and_filter_cluster_centers(
 		return ENOMEM;
 	}
 
-	// create temporary arrays for accumulating coordinates and finding boundaries (Bounding Box), mb to use VLA
-	uint32_t *sum_x = (uint32_t *)calloc(cctx->unique_count, sizeof(uint32_t));
-	uint32_t *sum_y = (uint32_t *)calloc(cctx->unique_count, sizeof(uint32_t));
-	uint32_t *pts_count = (uint32_t *)calloc(cctx->unique_count, sizeof(uint32_t));
-	
-	uint16_t *min_x = (uint16_t *)malloc(cctx->unique_count * sizeof(uint16_t));
-	uint16_t *max_x = (uint16_t *)malloc(cctx->unique_count * sizeof(uint16_t));
-	uint16_t *min_y = (uint16_t *)malloc(cctx->unique_count * sizeof(uint16_t));
-	uint16_t *max_y = (uint16_t *)malloc(cctx->unique_count * sizeof(uint16_t));
-
-	if (!sum_x || !sum_y || !pts_count || !min_x || !max_x || !min_y || !max_y) {
-		free(sum_x); free(sum_y); free(pts_count);
-		free(min_x); free(max_x); free(min_y); free(max_y);
+	cluster_stat_t *stats = (cluster_stat_t *)calloc(cctx->unique_count, sizeof(cluster_stat_t));
+	if (!stats) {
 		return ENOMEM;
 	}
 
-	// Boundries init
+	// minimums init (maximums are 0 already due to calloc)
 	for (uint8_t g = 0; g < cctx->unique_count; g++) {
-		min_x[g] = 0xFFFF; min_y[g] = 0xFFFF;
-		max_x[g] = 0;      max_y[g] = 0;
+		stats[g].min_x = 0xFFFF;
+		stats[g].min_y = 0xFFFF;
 	}
 
-	// The first pass: we collect metrics for each cluster
+	// first pass: each cluster metrics collection
 	for (size_t i = 0; i < keypoints->size; i++) {
-		uint8_t cluster_id = cctx->ids[i];
+		uint8_t id = cctx->ids[i];
 
-		if (cluster_id == DBSCAN_NOISE || cluster_id == DBSCAN_CLUSTER_UNCLASSIFIED)
-			continue;
-
-		if (cluster_id >= cctx->unique_count)
+		if (id == DBSCAN_NOISE || id == DBSCAN_CLUSTER_UNCLASSIFIED || id >= cctx->unique_count)
 			continue;
 
 		pixel_coord_t *p = (pixel_coord_t *)vector_get(keypoints, i);
 		if (!p)
 			continue;
 
-		sum_x[cluster_id] += p->x;
-		sum_y[cluster_id] += p->y;
-		pts_count[cluster_id]++;
+		stats[id].sum_x += p->x;
+		stats[id].sum_y += p->y;
+		stats[id].count++;
 
-		if (p->x < min_x[cluster_id]) min_x[cluster_id] = p->x;
-		if (p->x > max_x[cluster_id]) max_x[cluster_id] = p->x;
-		if (p->y < min_y[cluster_id]) min_y[cluster_id] = p->y;
-		if (p->y > max_y[cluster_id]) max_y[cluster_id] = p->y;
+		if (p->x < stats[id].min_x) stats[id].min_x = p->x;
+		if (p->x > stats[id].max_x) stats[id].max_x = p->x;
+		if (p->y < stats[id].min_y) stats[id].min_y = p->y;
+		if (p->y > stats[id].max_y) stats[id].max_y = p->y;
 	}
 
-	// Second pass: we analyze the geometry and calculate the final centers
+	// second pass: geometry, filtering and centers calculation
 	for (uint8_t g = 0; g < cctx->unique_count; g++) {
-		if (pts_count[g] == 0) {
+		if (stats[g].count == 0) {
 			cctx->centers[g] = (pixel_coord_t){.x = 0, .y = 0};
 			continue;
 		}
 
-		uint16_t cluster_w = max_x[g] - min_x[g] + 1;
-		uint16_t cluster_h = max_y[g] - min_y[g] + 1;
+		uint16_t cluster_w = stats[g].max_x - stats[g].min_x + 1;
+		uint16_t cluster_h = stats[g].max_y - stats[g].min_y + 1;
 
-		// --- CRITERIA FOR FILTERING LARGE CLOUDS AND ANOMALIES ---
+		// --- filtering clouds criteria ---
 		
-		// Size Threshold: If the cluster is larger than 40% of the width or height of the frame
-		bool is_too_large = (cluster_w > (conf->frame_width  / 2)) || 
-		                    (cluster_h > (conf->frame_height / 2));
+		// size > 40%
+		bool is_too_large = (cluster_w > (vconf->frame_width  * 4 / 10)) || 
+		                    (cluster_h > (vconf->frame_height * 4 / 10));
 
-		// Shape threshold ("long bean" / line): aspect ratio greater than 3.5
-		float aspect_ratio1 = (float)cluster_w / (float)cluster_h;
-		float aspect_ratio2 = (float)cluster_h / (float)cluster_w;
-		bool is_too_eccentric = (aspect_ratio1 > 3.5f) || (aspect_ratio2 > 3.5f);
+		// Sides relation > 3.5.
+		bool is_too_eccentric = (cluster_w * 2 > cluster_h * 7) || 
+		                        (cluster_h * 2 > cluster_w * 7);
 
-		if (is_too_large || is_too_eccentric) {	// The cluster is not like a drone
-			cctx->centers[g] = (pixel_coord_t){.x = 0, .y = 0};
-			if (conf->is_test)
+		if (is_too_large || is_too_eccentric) {
+			cctx->centers[g] = (pixel_coord_t){.x = 0, .y = 0}; // Не валідний
+			if (is_test) {
 				ddlogw(TAG, "cluster %d filtered out (W:%d, H:%d)%s%s.", g, cluster_w, cluster_h,
-					is_too_large? " too_large" : "", is_too_eccentric? " too_eccentric" : "");
+					is_too_large ? " too_large" : "", is_too_eccentric ? " too_eccentric" : "");
+			}
 		} else {
-			// The cluster is valid - we calculate the geometric mean
-			cctx->centers[g].x = (uint16_t)(sum_x[g] / pts_count[g]);
-			cctx->centers[g].y = (uint16_t)(sum_y[g] / pts_count[g]);
-			if (conf->is_test)
+			cctx->centers[g].x = (uint16_t)(stats[g].sum_x / stats[g].count);
+			cctx->centers[g].y = (uint16_t)(stats[g].sum_y / stats[g].count);
+			if (is_test) {
 				ddlogi(TAG, "cluster %d center calculated: x=%d, y=%d", g, cctx->centers[g].x, cctx->centers[g].y);
+			}
 		}
 	}
 
-	free(sum_x); free(sum_y); free(pts_count);
-	free(min_x); free(max_x); free(min_y); free(max_y);
+	free(stats);
 	return OK;
 }
 
@@ -212,9 +207,10 @@ errno_t calculate_and_filter_cluster_centers(
 clusters_context_t dbscan(
 	const vector_t *keypoints,
 	const uint16_t min_points,
-	const config_t *conf
+	vision_conf_t *vconf,
+	bool is_test
 ) {
-	if (!keypoints || !min_points) {
+	if (!keypoints || !min_points || !vconf) {
 		ddloge(TAG, "invalid arg");
 		return (clusters_context_t){0};
 	}
@@ -225,8 +221,16 @@ clusters_context_t dbscan(
 		.unique_count = 0,
 		.centers = NULL
 	};
+	if (!cctx.ids) {
+		return (clusters_context_t){0};
+	}
 
-	uint16_t max_distance = (conf->frame_width + conf->frame_height) / 20;
+	uint16_t max_distance = sqrt(
+		vconf->frame_width * vconf->frame_width + vconf->frame_height * vconf->frame_height
+	) / 100 * vconf->dbscan_max_distance_img_diagonal_percent;
+
+	if (is_test)
+		ddlogi(TAG, "max_d %d %d %d", max_distance, vconf->dbscan_max_distance_img_diagonal_percent, DEFAULT_DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT);
 
 	for (size_t i = 0; i < keypoints->size; i++)
 		cctx.ids[i] = DBSCAN_CLUSTER_UNCLASSIFIED;
@@ -236,10 +240,16 @@ clusters_context_t dbscan(
 			if (expand_cluster(i, max_distance, min_points, keypoints, &cctx) == OK)
 				cctx.unique_count++;
 
-	cctx.centers = (pixel_coord_t *)calloc(((cctx.unique_count)? cctx.unique_count : 1), sizeof(pixel_coord_t));
+	if (cctx.unique_count == 0)
+		return cctx;
 
-	if (cctx.unique_count > 0)
-		calculate_and_filter_cluster_centers(&cctx, keypoints, conf);
+	cctx.centers = (pixel_coord_t *)calloc(cctx.unique_count, sizeof(pixel_coord_t));
+	if (!cctx.centers) {
+		ddloge(TAG, "failed to calloc centers");
+		return cctx;
+	}
+
+	calculate_and_filter_cluster_centers(&cctx, keypoints, vconf, is_test);
 
 	return cctx;
 }

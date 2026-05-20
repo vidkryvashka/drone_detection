@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdlib.h>
 #include <sys/_types/_errno_t.h>
 #include <time.h>
 #include <dirent.h>
@@ -18,24 +19,25 @@
  * @brief function for test and as example for fuhrther video stream implementation
  */
 static errno_t primitive_process_one_image(
-	config_t *conf
+	const main_conf_t *conf,
+	vision_conf_t *vconf
 ) {
 	image_t* img = image_load(conf->input_filepath, GRAY);
 	if (!img) {
 		ddloge(TAG, "could not image_load %s", conf->input_filepath);
 		return EINVAL;
 	}
-	conf->frame_width = img->width;
-	conf->frame_height = img->height;
+	vconf->frame_width = img->width;
+	vconf->frame_height = img->height;
 
-	vector_t *kpts = fast9(img, conf->fast9_threshold);
+	vector_t *kpts = fast9(img, vconf->fast9_threshold);
 
 	if (image_gray_to_rgb(img) != OK) {
 		ddloge(TAG, "failed to convert image to RGB");
 		vector_destroy(kpts);
 	}
 
-	clusters_context_t cctx = dbscan(kpts, DBSCAN_MIN_CLUSTER_SIZE, conf);
+	clusters_context_t cctx = dbscan(kpts, DBSCAN_MIN_CLUSTER_SIZE, vconf, true);
 	locate_clusters_on_img(img, kpts, cctx.ids, cctx.centers, cctx.unique_count, conf->dim_coef, 0);
 
 	if (image_save_jpg(conf->input_filepath, conf->output_dir, img, 1) != OK)
@@ -140,7 +142,8 @@ gffd_cleanup_error:
 
 static vector_t *generate_frames_keypoints(
 	const vector_t *filenames,
-	config_t *conf
+	const char *input_img_dir,
+	vision_conf_t *vconf
 ) {
 	vector_t *frames_kpts = vector_create(filenames->size, sizeof(vector_t*));
 	if (!frames_kpts) {
@@ -154,20 +157,20 @@ static vector_t *generate_frames_keypoints(
 		str_t *filename = (str_t*)vector_get(filenames, i);
 		if (filename) {
 			char imgpath[STR_MAX_LEN + 1];
-			snprintf(imgpath, sizeof(imgpath), "%s/%s", conf->input_img_dir , filename->name);
+			snprintf(imgpath, sizeof(imgpath), "%s/%s", input_img_dir , filename->name);
 			
 			image_t* img = image_load(imgpath, GRAY);
 			if (!img) {
-				progress_bar_interrupt();
+				// progress_bar_interrupt();
 				ddloge(TAG, "could not image_load %s", imgpath);
 				vector_destroy(frames_kpts);
 				return NULL;
 			} else {
-				if (!conf->frame_width || !conf->frame_height) {
-					conf->frame_width = img->width;
-					conf->frame_height = img->height;
+				if (!vconf->frame_width || !vconf->frame_height) {
+					vconf->frame_width = img->width;
+					vconf->frame_height = img->height;
 				}
-				vector_t *kpts = fast9(img, conf->fast9_threshold);
+				vector_t *kpts = fast9(img, vconf->fast9_threshold);
 				if (kpts) {
 					vector_push_back(frames_kpts, &kpts);
 				}
@@ -182,9 +185,13 @@ static vector_t *generate_frames_keypoints(
 }
 
 
+static vector_t *generate_frames_clusters
+
+
 static errno_t save_frames_keypoints_to_imgs(
 	const vector_t *frames_kpts,
-	const config_t *conf
+	const main_conf_t *conf,
+	vision_conf_t *vconf
 ) {
 	if (!frames_kpts || !conf || !conf->output_dir[0]) {
 		ddloge(TAG, "invalid arg");
@@ -198,18 +205,19 @@ static errno_t save_frames_keypoints_to_imgs(
 		char new_filename[STR_MAX_LEN + 1];
 		snprintf(new_filename, sizeof(new_filename), "%zu.jpg", i + 1);
 		
-		image_t *img = image_create(conf->frame_width, conf->frame_height, RGB);
+		image_t *img = image_create(vconf->frame_width, vconf->frame_height, RGB);
 		if (!img) {
-			progress_bar_interrupt();
+			// progress_bar_interrupt();
 			ddloge(TAG, "failed to create image for frame %zu", i + 1);
 			return -1;
 		}
 		vector_t *kpts = *(vector_t**)vector_get(frames_kpts, i);
 		
 		if (kpts) {
-			clusters_context_t cctx = dbscan(kpts, DBSCAN_MIN_CLUSTER_SIZE, conf);
+			clusters_context_t cctx = dbscan(kpts, DBSCAN_MIN_CLUSTER_SIZE, vconf, false);
 			locate_clusters_on_img(img, kpts, cctx.ids, cctx.centers, cctx.unique_count, 0, 1);
-			// locate_keypoints_on_img(img, kpts, 0, 255, 1);
+			free(cctx.ids);
+			free(cctx.centers);
 		}
 		image_save_jpg(new_filename, conf->output_dir, img, 0);
 		image_free(img);
@@ -249,7 +257,8 @@ static errno_t images_to_video(
 
 
 static errno_t process_img_dir(
-	config_t *conf
+	const main_conf_t *conf,
+	vision_conf_t *vconf
 ) {
 	if (!conf || !conf->input_img_dir[0]) {
 		ddloge(TAG, "invalid arg");
@@ -261,10 +270,11 @@ static errno_t process_img_dir(
 		return EIO;
 	}
 
-	vector_t *frames_kpts = generate_frames_keypoints(filenames, conf);
+	vector_t *frames_kpts = generate_frames_keypoints(filenames, conf->input_img_dir, vconf);
 	if (!frames_kpts)
 		return -1;
-	save_frames_keypoints_to_imgs(frames_kpts, conf);
+
+	save_frames_keypoints_to_imgs(frames_kpts, conf, vconf);
 
 	images_to_video(conf->output_dir, DEFAULT_OUTPUT_DIR);
 
@@ -278,12 +288,19 @@ static errno_t process_img_dir(
 
 
 errno_t apply_io_mode(
-	config_t *conf
+	const main_conf_t *conf
 ) {
 	if (!conf) {
 		ddloge(TAG, "invalid arg");
 		return EINVAL;
 	}
+
+	vision_conf_t vconf = {
+		.frame_width = 0,
+		.frame_height = 0,
+		.fast9_threshold = DEFAULT_THRESHOLD,
+		.dbscan_max_distance_img_diagonal_percent = DEFAULT_DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT
+	};
 
 	errno_t err;
 	clock_t start = clock();
@@ -293,10 +310,10 @@ errno_t apply_io_mode(
 		ddloge(TAG, "io_mode not selected");
 		return EINVAL;
 	case single_img_file:
-		err = primitive_process_one_image(conf);
+		err = primitive_process_one_image(conf, &vconf);
 		break;
 	case input_img_dir:
-		err = process_img_dir(conf);
+		err = process_img_dir(conf, &vconf);
 		break;
 	}
 

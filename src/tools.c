@@ -22,8 +22,3 @@ void print_progress_bar(
 	printf("] %d%% (%zu/%zu)", percentage, current, total);
 	fflush(stdout);
 }
-
-void progress_bar_interrupt() {
-	// \r returns to start, gaps "erase" old bar
-	printf("\r%80s\r", ""); 
-}

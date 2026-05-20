@@ -42,7 +42,7 @@ test: $(TARGET)
 	./$(TARGET) $(TEST_IMG_PATH)
 
 clean:
-	rm -f $(OBJ_DIR)/*.o
+	rm -f $(OBJS)
 	rm -rf $(BIN_DIR)/*
 
 clean_output:

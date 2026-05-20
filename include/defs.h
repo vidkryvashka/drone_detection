@@ -34,21 +34,17 @@ typedef struct {
 	char input_filepath[STR_MAX_LEN + 1];
 	char input_img_dir[STR_MAX_LEN + 1];
 	char output_dir[STR_MAX_LEN + 1];
-	uint8_t fast9_threshold;
-	uint8_t dim_coef;
+	uint8_t dim_coef;	// 0 - 8 where 0 is black. applies only while saving image
 	enum IO_MODES io_mode;
-	uint16_t frame_width;
-	uint16_t frame_height;
-	bool is_test;
-} config_t;
+} main_conf_t;
 
 errno_t parse_conf(
 	int argc, char **argv,
-	config_t *conf
+	main_conf_t *conf
 );
 
 errno_t apply_io_mode(
-	config_t *conf
+	const main_conf_t *conf
 );
 
 #define PROGRESS_BAR_WIDTH 50
@@ -60,10 +56,5 @@ void print_progress_bar(
 	const size_t current,
 	const size_t total
 );
-
-/**
- * @brief safe interrupt to print error without progress bar crash
- */
-void progress_bar_interrupt();
 
 #endif

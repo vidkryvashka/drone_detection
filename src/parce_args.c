@@ -53,19 +53,15 @@ static enum IO_MODES file_or_dir_exists(
 }
 
 static void set_default_conf(
-	config_t *conf
+	main_conf_t *conf
 ) {
 	bzero(conf, sizeof(*conf));
-	conf->fast9_threshold = DEFAULT_THRESHOLD;
 	conf->dim_coef = DEAFAULT_DIM_COEF;
-	conf->frame_width = 0;
-	conf->frame_height = 0;
-	conf->is_test = false;
 }
 
 errno_t parse_conf(
 	int argc, char **argv,
-	config_t *conf
+	main_conf_t *conf
 ) {
 	if (argc < 2) {
 		print_help();
@@ -84,14 +80,13 @@ errno_t parse_conf(
 	struct option longopts[] = {
 		{"input", required_argument, NULL, 'i'},
 		{"output-dir", required_argument, NULL, 'o'},
-		{"threshold", required_argument, NULL, 't'},
 		{"dim-coef", required_argument, NULL, 'd'},
 		{"help", no_argument, NULL, 'h'},
 		{NULL, 0, NULL, 0}
 	};
 
 	int opt, longindex;
-	char shortopts[] = "i:o:t:d:h";	// leading : Enables silent error reporting. X:: optional close arg -Xarg. no : no arg
+	char shortopts[] = "i:o:d:h";	// leading : Enables silent error reporting. X:: optional close arg -Xarg. no : no arg
 	char *endptr;
 	long val;
 	while ((opt = getopt_long(
@@ -108,7 +103,6 @@ errno_t parse_conf(
 			case single_img_file:
 				snprintf(conf->input_filepath, sizeof(conf->input_filepath), "%s", optarg);
 				conf->io_mode = single_img_file;
-				conf->is_test = true;
 				break;
 			case input_img_dir:
 				snprintf(conf->input_img_dir, sizeof(conf->input_img_dir), "%s", optarg);
@@ -142,20 +136,11 @@ errno_t parse_conf(
 				return EINVAL;
 			}
 			break;
-		case 't':
-			endptr = NULL;
-			val = strtol(optarg, &endptr, 10);
-			if (endptr == optarg || val < 0 || val > 255) {
-				ddloge(TAG, "Invalid fast9_threshold value: %s", optarg);
-				break;
-			}
-			conf->fast9_threshold = (uint8_t)val;
-			break;
 		case 'd':
 			endptr = NULL;
 			val = strtol(optarg, &endptr, 10);
 			if (endptr == optarg || val < 0 || val > 255) {
-				ddloge(TAG, "Invalid fast9_threshold value: %s", optarg);
+				ddloge(TAG, "Invalid dim_coef value: %s", optarg);
 				break;
 			}
 			conf->dim_coef = (uint8_t)val;
@@ -192,9 +177,6 @@ errno_t parse_conf(
 		snprintf(conf->output_dir, sizeof(conf->output_dir), "%s", DEFAULT_OUTPUT_DIR);
 		ddlogw(TAG, "output_dir set default %s", conf->output_dir);
 	}
-
-	if (conf->fast9_threshold < conf->dim_coef)
-		ddlogw(TAG, "In case you could blunder: threshold: %d dim_coef: %d", conf->fast9_threshold, conf->dim_coef);
 
 	return OK;
 }
