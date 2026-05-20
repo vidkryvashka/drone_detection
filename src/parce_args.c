@@ -57,6 +57,7 @@ static void set_default_conf(
 ) {
 	bzero(conf, sizeof(*conf));
 	conf->dim_coef = DEAFAULT_DIM_COEF;
+	conf->is_test = 0;
 }
 
 errno_t parse_conf(

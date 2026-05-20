@@ -1,5 +1,7 @@
 #include <stdbool.h>
 #include <stdint.h>
+#include <dirent.h>
+#include "defs.h"
 #include "img_defs.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -61,11 +63,93 @@ image_t* image_create(
 }
 
 
+static bool is_numbered_img_file(
+	const char *filename
+) {
+	if (!filename)
+		return false;
+
+	int num;
+	int chars_consumed = 0;
+
+	int parsed_jpg = sscanf(filename, "%d.jpg%n", &num, &chars_consumed);
+	int parsed_png = sscanf(filename, "%d.png%n", &num, &chars_consumed);
+
+	if (parsed_jpg || parsed_png)
+		if (chars_consumed == strlen(filename))
+			return true;
+
+	return false;
+}
+
+static int compare_string_pointers(const void *a, const void *b) {
+	const str_t *file_a = (const str_t *)a;
+	const str_t *file_b = (const str_t *)b;
+
+	int num_a = atoi(file_a->name);
+	int num_b = atoi(file_b->name);
+
+	return num_a - num_b;
+}
+
+static void vector_print_strs(vector_t *vec) {
+	ddlogi(TAG, "size %zu:", vec->size);
+	for (size_t i = 0; i < vec->size; i++) {
+		str_t *str = (str_t*)vector_get(vec, i);
+		if (str)
+			printf("%s ", str->name);
+	}
+	printf("\n");
+}
+
+vector_t *get_filepathes_from_dir(
+	const char *img_dir
+) {
+	DIR *dir = opendir(img_dir);
+	if (!dir) {
+		ddloge(TAG, "couldn't open %s", img_dir);
+		return NULL;
+	}
+	struct dirent *de;
+	vector_t *filenames = vector_create(VECTOR_DEFAULT_INIT_CAPACITY, sizeof(str_t));
+	if (!filenames) {
+		ddloge(TAG, "couldn't vector_create");
+		goto get_filepathes_from_dir_fail;
+	}
+
+	while ((de = readdir(dir)))
+		if (is_numbered_img_file(de->d_name)) {
+			str_t f_item;
+			snprintf(f_item.name, sizeof(f_item.name), "%s", de->d_name);
+			if (vector_push_back(filenames, &f_item) != OK)
+				goto get_filepathes_from_dir_fail;
+		}
+	closedir(dir);
+
+	if (filenames && filenames->size > 2 && filenames->data)
+		qsort(
+			filenames->data,
+			filenames->size,
+			filenames->sizeof_element,
+			compare_string_pointers
+		);
+	else
+		ddloge(TAG, "didn't qsort filenames");
+
+	return filenames;
+
+get_filepathes_from_dir_fail:
+	closedir(dir);
+	vector_destroy(filenames);
+	return NULL;
+}
+
+
 errno_t image_save_jpg(
 	const char* input_filepath,
 	const char* output_dir,
 	const image_t* img,
-	const bool enable_print_save
+	const bool enable_print
 ) {
 	if (!img || !img->pixels || !input_filepath || !output_dir) {
 		ddloge(TAG, "invalid arg");
@@ -83,16 +167,16 @@ errno_t image_save_jpg(
 
 	size_t needed_size = dir_len + strlen(separator) + strlen(pure_filename) + 1;
 	
-	char custom_file_path[needed_size];
-	snprintf(custom_file_path, needed_size, "%s%s%s", output_dir, separator, pure_filename);
+	char custom_output_file_path[needed_size];
+	snprintf(custom_output_file_path, needed_size, "%s%s%s", output_dir, separator, pure_filename);
 
-	if (stbi_write_jpg(custom_file_path, img->width, img->height, img->channel, img->pixels, 0)) {
-		if (enable_print_save)
-			ddlogi(TAG, "saved to \033[0;32m%s\033[0;0m", custom_file_path);
+	if (stbi_write_jpg(custom_output_file_path, img->width, img->height, img->channel, img->pixels, 0)) {
+		if (enable_print)
+			ddlogi(TAG, "saved to \033[0;32m%s\033[0;0m", custom_output_file_path);
 		return OK;
 	}
 
-	ddloge(TAG, "couldn't stbi_write_jpg %s", custom_file_path);
+	ddloge(TAG, "couldn't stbi_write_jpg %s", custom_output_file_path);
 	return EIO;
 }
 
@@ -150,6 +234,35 @@ errno_t image_gray_to_rgb(
 
 	return OK;
 }
+
+
+errno_t images_to_video(
+	const char *output_img_dir,
+	const char *output_dir
+) {
+	if (!output_img_dir || !output_dir) {
+		return EINVAL;
+	}
+
+	char cmd[STR_MAX_LEN * 3 + 1];
+
+	int written = snprintf(cmd, sizeof(cmd), 
+		"ffmpeg -framerate 24 -i \"%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p \"%s/dildo.mp4\" -y", 
+		output_img_dir, output_dir);
+
+	if (written < 0 || (size_t)written >= sizeof(cmd)) {
+		ddloge(TAG, "command buffer overflowed");
+		return ENOMEM;
+	}
+
+	if (system(cmd) == -1) {
+		ddloge(TAG, "failed to execute ffmpeg command");
+		return EIO;
+	}
+
+	return OK;
+}
+
 
 
 static void dim_img(
@@ -285,33 +398,37 @@ static uint32_t generate_cluster_color(uint8_t cluster_id) {
 errno_t locate_clusters_on_img(
 	image_t *img,
 	const vector_t *keypoints,
-	const uint8_t *clusters_indexes,
-	const pixel_coord_t *clusters_centers,
-	const size_t clusters_count,
+	const void *cctx_vp,
 	const uint8_t dim_coef,
 	const bool is_img_empty
 ) {
-	if (!img || !keypoints || !clusters_indexes) {
+	if (!img || !keypoints || !cctx_vp) {
 		return EINVAL;
+	}
+
+	if (img->channel == GRAY && image_gray_to_rgb(img) != OK) {
+		ddloge(TAG, "failed to convert image to RGB");
+		return -1;
 	}
 
 	if (!is_img_empty)
 		dim_img(img, dim_coef);
 
+	clusters_context_t *cctx = (clusters_context_t*)cctx_vp;
 	for (size_t i = 0; i < keypoints->size; i++) {
-		pixel_coord_t *point = (pixel_coord_t *)vector_get(keypoints, i);
+		pixel_coord_t *point = (pixel_coord_t*)vector_get(keypoints, i);
 		if (!point) continue;
 
-		uint8_t cluster_id = clusters_indexes[i];
+		uint8_t cluster_id = cctx->ids[i];
 		uint32_t color = generate_cluster_color(cluster_id);
 
 		locate_single_point_on_img(img, *point, color, 1);
 	}
 
-	for (uint8_t i = 0; i < clusters_count; i++) {
-		if (clusters_centers && (clusters_centers[i].x != 0 || clusters_centers[i].y != 0)) {
+	for (uint8_t i = 0; i < cctx->unique_count; i++) {
+		if (cctx->centers && (cctx->centers[i].x != 0 || cctx->centers[i].y != 0)) {
 			uint32_t center_marker_color = COLOR_RGB_ENCODE(255, 255, 0);
-			locate_single_point_on_img(img, clusters_centers[i], center_marker_color, 3);
+			locate_single_point_on_img(img, cctx->centers[i], center_marker_color, 3);
 		}
 	}
 

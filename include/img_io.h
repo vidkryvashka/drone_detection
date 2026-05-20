@@ -5,7 +5,7 @@
 #include "img_defs.h"
 
 
-#define DEAFAULT_DIM_COEF 3
+#define DEAFAULT_DIM_COEF 2
 #define MAX_DIM_COEF 12
 
 
@@ -17,15 +17,40 @@ image_t* image_load(
 	const enum CHANNELS channel
 );
 
+image_t* image_create(
+	const uint16_t width,
+	const uint16_t height,
+	const enum CHANNELS channel
+);
+
+/**
+ * @brief allocs filenames str_t vector from img_dir
+ */
+vector_t *get_filepathes_from_dir(
+	const char *img_dir
+);
+
 errno_t image_save_jpg(
-	const char* filename,		// filename of saved output is the same
+	const char* input_filepath,		// filename of saved output must be the same
 	const char* output_dir,
 	const image_t* img,
-	const bool enable_print_save
+	const bool enable_print
+);
+
+errno_t image_free(
+	image_t* img
 );
 
 errno_t image_gray_to_rgb(
 	image_t *img
+);
+
+/**
+ * @brief call ffmpeg
+ */
+errno_t images_to_video(
+	const char *output_img_dir,
+	const char *output_dir
 );
 
 
@@ -77,11 +102,11 @@ errno_t locate_single_point_on_img(
 errno_t locate_clusters_on_img(
 	image_t *img,
 	const vector_t *keypoints,
-	const uint8_t *clusters_indexes,
-	const pixel_coord_t *clusters_centers,
-	const size_t clusters_count,
+	const void *cctx_vp,
 	const uint8_t dim_coef,
 	const bool is_img_empty
 );
+
+
 
 #endif

@@ -184,11 +184,11 @@ static errno_t calculate_and_filter_cluster_centers(
 		bool is_too_eccentric = (cluster_w * 2 > cluster_h * 7) || 
 		                        (cluster_h * 2 > cluster_w * 7);
 
-		if (is_too_large || is_too_eccentric) {
-			cctx->centers[g] = (pixel_coord_t){.x = 0, .y = 0}; // Не валідний
+		if (vconf->dbscan_enable_geometry_filtering && (is_too_large || is_too_eccentric)) {
+			cctx->centers[g] = (pixel_coord_t){.x = 0, .y = 0};
 			if (is_test) {
 				ddlogw(TAG, "cluster %d filtered out (W:%d, H:%d)%s%s.", g, cluster_w, cluster_h,
-					is_too_large ? " too_large" : "", is_too_eccentric ? " too_eccentric" : "");
+					is_too_large? " too_large" : "", is_too_eccentric? " too_eccentric" : "");
 			}
 		} else {
 			cctx->centers[g].x = (uint16_t)(stats[g].sum_x / stats[g].count);
@@ -206,11 +206,10 @@ static errno_t calculate_and_filter_cluster_centers(
 
 clusters_context_t dbscan(
 	const vector_t *keypoints,
-	const uint16_t min_points,
 	vision_conf_t *vconf,
 	bool is_test
 ) {
-	if (!keypoints || !min_points || !vconf) {
+	if (!keypoints || !vconf) {
 		ddloge(TAG, "invalid arg");
 		return (clusters_context_t){0};
 	}
@@ -229,15 +228,12 @@ clusters_context_t dbscan(
 		vconf->frame_width * vconf->frame_width + vconf->frame_height * vconf->frame_height
 	) / 100 * vconf->dbscan_max_distance_img_diagonal_percent;
 
-	if (is_test)
-		ddlogi(TAG, "max_d %d %d %d", max_distance, vconf->dbscan_max_distance_img_diagonal_percent, DEFAULT_DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT);
-
 	for (size_t i = 0; i < keypoints->size; i++)
 		cctx.ids[i] = DBSCAN_CLUSTER_UNCLASSIFIED;
 
 	for (size_t i = 0; i < keypoints->size; i++)
 		if (cctx.ids[i] == DBSCAN_CLUSTER_UNCLASSIFIED)
-			if (expand_cluster(i, max_distance, min_points, keypoints, &cctx) == OK)
+			if (expand_cluster(i, max_distance, vconf->dbscan_min_cluster_size, keypoints, &cctx) == OK)
 				cctx.unique_count++;
 
 	if (cctx.unique_count == 0)

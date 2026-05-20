@@ -21,7 +21,7 @@
 
 #define STR_MAX_LEN 127
 typedef struct {
-	char name[STR_MAX_LEN + 1]; // +1 for '\0'
+	char name[STR_MAX_LEN + 1];
 } str_t;
 
 enum IO_MODES {
@@ -36,6 +36,7 @@ typedef struct {
 	char output_dir[STR_MAX_LEN + 1];
 	uint8_t dim_coef;	// 0 - 8 where 0 is black. applies only while saving image
 	enum IO_MODES io_mode;
+	bool is_test;
 } main_conf_t;
 
 errno_t parse_conf(
@@ -44,7 +45,7 @@ errno_t parse_conf(
 );
 
 errno_t apply_io_mode(
-	const main_conf_t *conf
+	main_conf_t *conf
 );
 
 #define PROGRESS_BAR_WIDTH 50

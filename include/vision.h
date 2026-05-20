@@ -9,6 +9,8 @@ typedef struct {
 	uint16_t frame_width;
 	uint16_t frame_height;
 	uint16_t dbscan_max_distance_img_diagonal_percent;
+	uint8_t dbscan_min_cluster_size;
+	uint8_t dbscan_enable_geometry_filtering;
 	uint8_t fast9_threshold;
 } vision_conf_t;
 
@@ -44,7 +46,6 @@ typedef struct {
 
 clusters_context_t dbscan(
 	const vector_t *keypoints,
-	const uint16_t min_points,
 	vision_conf_t *vconf,
 	bool is_test
 );
