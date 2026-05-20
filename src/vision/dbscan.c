@@ -123,13 +123,8 @@ static errno_t calculate_and_filter_cluster_centers(
 	const vision_conf_t *vconf,
 	bool is_test
 ) {
-	if (!keypoints || !cctx || cctx->unique_count == 0 || !cctx->ids) {
+	if (!keypoints || !cctx || cctx->unique_count == 0 || !cctx->ids || !cctx->centers) {
 		return EINVAL;
-	}
-
-	if (!cctx->centers) {
-		ddloge(TAG, "failed to allocate centers array");
-		return ENOMEM;
 	}
 
 	cluster_stat_t *stats = (cluster_stat_t *)calloc(cctx->unique_count, sizeof(cluster_stat_t));
@@ -164,11 +159,10 @@ static errno_t calculate_and_filter_cluster_centers(
 		if (p->y > stats[id].max_y) stats[id].max_y = p->y;
 	}
 
-	// second pass: geometry, filtering and centers calculation
+	// second pass: geometry, filtering and calculating final valid centers
 	for (uint8_t g = 0; g < cctx->unique_count; g++) {
 		if (stats[g].count == 0) {
-			cctx->centers[g] = (pixel_coord_t){.x = 0, .y = 0};
-			continue;
+			continue; // skip empty clusters
 		}
 
 		uint16_t cluster_w = stats[g].max_x - stats[g].min_x + 1;
@@ -185,17 +179,18 @@ static errno_t calculate_and_filter_cluster_centers(
 		                        (cluster_h * 2 > cluster_w * 7);
 
 		if (vconf->dbscan_enable_geometry_filtering && (is_too_large || is_too_eccentric)) {
-			cctx->centers[g] = (pixel_coord_t){.x = 0, .y = 0};
-			if (is_test) {
+			if (is_test)
 				ddlogw(TAG, "cluster %d filtered out (W:%d, H:%d)%s%s.", g, cluster_w, cluster_h,
-					is_too_large? " too_large" : "", is_too_eccentric? " too_eccentric" : "");
-			}
+					is_too_large ? " too_large" : "", is_too_eccentric ? " too_eccentric" : "");
 		} else {
-			cctx->centers[g].x = (uint16_t)(stats[g].sum_x / stats[g].count);
-			cctx->centers[g].y = (uint16_t)(stats[g].sum_y / stats[g].count);
-			if (is_test) {
-				ddlogi(TAG, "cluster %d center calculated: x=%d, y=%d", g, cctx->centers[g].x, cctx->centers[g].y);
-			}
+			pixel_coord_t valid_center;
+			valid_center.x = (uint16_t)(stats[g].sum_x / stats[g].count);
+			valid_center.y = (uint16_t)(stats[g].sum_y / stats[g].count);
+			
+			vector_push_back(cctx->centers, &valid_center);
+			
+			if (is_test)
+				ddlogi(TAG, "cluster %d center calculated: x=%d, y=%d", g, valid_center.x, valid_center.y);
 		}
 	}
 
@@ -203,11 +198,12 @@ static errno_t calculate_and_filter_cluster_centers(
 	return OK;
 }
 
-
-clusters_context_t dbscan(
+// Internal recursive function to allow merging centers without infinite recursion
+static clusters_context_t dbscan_core(
 	const vector_t *keypoints,
 	vision_conf_t *vconf,
-	bool is_test
+	bool is_test,
+	bool allow_merge
 ) {
 	if (!keypoints || !vconf) {
 		ddloge(TAG, "invalid arg");
@@ -239,13 +235,55 @@ clusters_context_t dbscan(
 	if (cctx.unique_count == 0)
 		return cctx;
 
-	cctx.centers = (pixel_coord_t *)calloc(cctx.unique_count, sizeof(pixel_coord_t));
+	cctx.centers = vector_create(cctx.unique_count, sizeof(pixel_coord_t));
 	if (!cctx.centers) {
-		ddloge(TAG, "failed to calloc centers");
+		ddloge(TAG, "failed to calloc centers vector");
 		return cctx;
 	}
 
 	calculate_and_filter_cluster_centers(&cctx, keypoints, vconf, is_test);
 
+	// --- SECONDARY DBSCAN: MERGE CLOUDS OF CENTERS ---
+	if (allow_merge && cctx.centers->size > DBSCAN_MAX_CENTERS_BEFORE_RECURSION) {
+		if (is_test) {
+			ddlogw(TAG, "too many centers (%zu). Running secondary DBSCAN to merge them...", cctx.centers->size);
+		}
+
+		// Backup vconf fields to temporarily override them for centers merging
+		uint16_t orig_min_cluster = vconf->dbscan_min_cluster_size;
+		bool orig_geom_filter = vconf->dbscan_enable_geometry_filtering;
+		uint8_t orig_dist_percent = vconf->dbscan_max_distance_img_diagonal_percent;
+
+		vconf->dbscan_min_cluster_size = 1;
+		vconf->dbscan_enable_geometry_filtering = false;
+		vconf->dbscan_max_distance_img_diagonal_percent = orig_dist_percent * 2;
+
+		// Call core recursively on the centers vector. allow_merge = false prevents infinite recursion
+		clusters_context_t merged_cctx = dbscan_core(cctx.centers, vconf, is_test, false);
+
+		// Restore original config
+		vconf->dbscan_min_cluster_size = orig_min_cluster;
+		vconf->dbscan_enable_geometry_filtering = orig_geom_filter;
+		vconf->dbscan_max_distance_img_diagonal_percent = orig_dist_percent;
+
+		// Overwrite old centers vector with the newly merged vector
+		vector_destroy(cctx.centers);
+		cctx.centers = merged_cctx.centers;
+
+		// Clean up the internal ids array from the secondary run (we don't need it)
+		free(merged_cctx.ids);
+		
+		// Note: cctx.ids still maps points to the ORIGINAL raw clusters. 
+		// The centers vector now contains the distilled final targets.
+	}
+
 	return cctx;
+}
+
+clusters_context_t dbscan(
+	const vector_t *keypoints,
+	vision_conf_t *vconf,
+	bool is_test
+) {
+	return dbscan_core(keypoints, vconf, is_test, true);
 }

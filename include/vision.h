@@ -35,12 +35,13 @@ vector_t* fast9(
 #define DBSCAN_CLUSTER_UNCLASSIFIED 255
 #define DBSCAN_NOISE 254
 #define DBSCAN_CLUSTER_MAX_UNIQUE_COUNT 253
+#define DBSCAN_MAX_CENTERS_BEFORE_RECURSION 16 // Trigger threshold for secondary DBSCAN
 
 typedef struct {
 	uint8_t *ids;
 	size_t size;	// equal to keypoints count
 	uint8_t unique_count;
-	pixel_coord_t *centers;
+	vector_t *centers;
 } clusters_context_t;
 
 

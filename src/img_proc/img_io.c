@@ -425,10 +425,13 @@ errno_t locate_clusters_on_img(
 		locate_single_point_on_img(img, *point, color, 1);
 	}
 
-	for (uint8_t i = 0; i < cctx->unique_count; i++) {
-		if (cctx->centers && (cctx->centers[i].x != 0 || cctx->centers[i].y != 0)) {
-			uint32_t center_marker_color = COLOR_RGB_ENCODE(255, 255, 0);
-			locate_single_point_on_img(img, cctx->centers[i], center_marker_color, 3);
+	if (cctx->centers) {
+		for (size_t i = 0; i < cctx->centers->size; i++) {
+			pixel_coord_t *center = (pixel_coord_t *)vector_get(cctx->centers, i);
+			if (center) {
+				uint32_t marker_color = COLOR_RGB_ENCODE(255, 255, 0);
+				locate_single_point_on_img(img, *center, marker_color, 3);
+			}
 		}
 	}
 

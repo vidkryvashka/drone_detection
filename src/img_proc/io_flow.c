@@ -36,8 +36,10 @@ static errno_t process_one_image(
 	if (image_save_jpg(conf->input_filepath, conf->output_dir, img, conf->is_test) != OK)
 		ddloge(TAG, "failed to save image");
 
-	free(cctx.ids);
-	free(cctx.centers);
+	if (cctx.ids)
+		free(cctx.ids);
+	if (cctx.centers)
+		vector_destroy(cctx.centers);
 	vector_destroy(kpts);
 	image_free(img);
 
