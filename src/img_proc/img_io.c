@@ -9,6 +9,7 @@
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "foreign/stb_image_write.h"
 
+#include "defs.h"
 #include "my_vector.h"
 #include "img_defs.h"
 #include "img_io.h"
@@ -269,49 +270,9 @@ static void dim_img(
 	image_t *img,
 	const uint8_t dim_coef
 ) {
-	if (dim_coef >= MAX_DIM_COEF) {
-		ddlogw(TAG, "dim_coef >= 8 (%d)", dim_coef);
-	} else {
-		size_t total_bytes = (size_t)img->width * img->height * img->channel;
-		for (size_t i = 0; i < total_bytes; i++)
-			img->pixels[i] = (uint8_t)((int)img->pixels[i] * dim_coef / MAX_DIM_COEF);
-	}
-}
-
-
-errno_t locate_keypoints_on_img(
-	image_t *img,
-	const vector_t *keypoints,
-	const uint8_t dim_coef,
-	const uint32_t color,
-	const bool is_img_empty
-) {
-	if (!img || !img->pixels || !keypoints) {
-		ddloge(TAG, "invalid args");
-		return EINVAL;
-	}
-
-	if (!is_img_empty)
-		dim_img(img, dim_coef);
-
-	for (size_t i = 0; i < keypoints->size; i++) {
-		pixel_coord_t* p = vector_get(keypoints, i);
-		if (!p)
-			continue;
-		if (p->x < img->width && p->y < img->height) {
-			size_t base_idx = ((size_t)p->y * img->width + p->x) * img->channel;
-			if (img->channel == GRAY)
-				img->pixels[base_idx] = COLOR_A_DECODE(color);
-			else if (img->channel == RGB || img->channel == RGBA) {
-				img->pixels[base_idx + 0] = COLOR_R_DECODE(color);
-				img->pixels[base_idx + 1] = COLOR_G_DECODE(color);
-				img->pixels[base_idx + 2] = COLOR_B_DECODE(color);
-				if (img->channel == RGBA)
-					img->pixels[base_idx + 3] = COLOR_A_DECODE(color);
-			}
-		}
-	}
-	return OK;
+	size_t total_bytes = (size_t)img->width * img->height * img->channel;
+	for (size_t i = 0; i < total_bytes; i++)
+		img->pixels[i] = (uint8_t)((int)img->pixels[i] * dim_coef / MAX_DIM_COEF);
 }
 
 
@@ -353,7 +314,7 @@ errno_t locate_single_point_on_img(
 }
 
 
-static uint32_t generate_cluster_color(uint8_t cluster_id) {
+static uint32_t generate_cluster_color(uint16_t cluster_id) {
 	if (cluster_id == DBSCAN_NOISE) {
 		// Keep noise dim
 		return COLOR_RGB_ENCODE(80, 80, 80); 
@@ -399,8 +360,7 @@ errno_t locate_clusters_on_img(
 	image_t *img,
 	const vector_t *keypoints,
 	const void *cctx_vp,
-	const uint8_t dim_coef,
-	const bool is_img_empty
+	const uint8_t dim_coef
 ) {
 	if (!img || !keypoints || !cctx_vp) {
 		return EINVAL;
@@ -411,7 +371,7 @@ errno_t locate_clusters_on_img(
 		return -1;
 	}
 
-	if (!is_img_empty)
+	if (dim_coef < MAX_DIM_COEF)
 		dim_img(img, dim_coef);
 
 	clusters_context_t *cctx = (clusters_context_t*)cctx_vp;
@@ -419,21 +379,107 @@ errno_t locate_clusters_on_img(
 		pixel_coord_t *point = (pixel_coord_t*)vector_get(keypoints, i);
 		if (!point) continue;
 
-		uint8_t cluster_id = cctx->ids[i];
+		uint16_t cluster_id = cctx->ids[i];
 		uint32_t color = generate_cluster_color(cluster_id);
 
 		locate_single_point_on_img(img, *point, color, 1);
 	}
 
-	if (cctx->centers) {
-		for (size_t i = 0; i < cctx->centers->size; i++) {
-			pixel_coord_t *center = (pixel_coord_t *)vector_get(cctx->centers, i);
-			if (center) {
-				uint32_t marker_color = COLOR_RGB_ENCODE(255, 255, 0);
-				locate_single_point_on_img(img, *center, marker_color, 3);
+	// if (cctx->centers) {
+	// 	for (size_t i = 0; i < cctx->centers->size; i++) {
+	// 		pixel_coord_t *center = (pixel_coord_t *)vector_get(cctx->centers, i);
+	// 		if (center) {
+	// 			locate_single_point_on_img(img, *center, COLOR_RGB_ENCODE(255, 255, 0), 3);
+	// 		}
+	// 	}
+	// }
+
+	return OK;
+}
+
+
+static errno_t draw_line_on_img(
+	image_t *img,
+	const pixel_coord_t start,
+	const pixel_coord_t end,
+	const uint32_t color
+) {
+	if (!img || !img->pixels) {
+		return EINVAL;
+	}
+
+	// Brezenham algorithm for a 1-pixel line
+	int16_t x0 = (int16_t)start.x;
+	int16_t y0 = (int16_t)start.y;
+	int16_t x1 = (int16_t)end.x;
+	int16_t y1 = (int16_t)end.y;
+
+	int16_t dx = abs(x1 - x0);
+	int16_t dy = abs(y1 - y0);
+	int16_t sx = (x0 < x1) ? 1 : -1;
+	int16_t sy = (y0 < y1) ? 1 : -1;
+	int16_t err = dx - dy;
+
+	while (true) {
+		if (x0 >= 0 && x0 < (int16_t)img->width && y0 >= 0 && y0 < (int16_t)img->height) {
+			size_t base_idx = ((size_t)y0 * img->width + x0) * img->channel;
+			
+			if (img->channel == GRAY) {
+				img->pixels[base_idx] = COLOR_A_DECODE(color);
+			} else if (img->channel == RGB || img->channel == RGBA) {
+				img->pixels[base_idx + 0] = COLOR_R_DECODE(color);
+				img->pixels[base_idx + 1] = COLOR_G_DECODE(color);
+				img->pixels[base_idx + 2] = COLOR_B_DECODE(color);
+				if (img->channel == RGBA) {
+					img->pixels[base_idx + 3] = COLOR_A_DECODE(color);
+				}
 			}
+		}
+
+		if (x0 == x1 && y0 == y1) break;
+
+		int16_t e2 = 2 * err;
+		if (e2 > -dy) {
+			err -= dy;
+			x0 += sx;
+		}
+		if (e2 < dx) {
+			err += dx;
+			y0 += sy;
 		}
 	}
 
+	return OK;
+}
+
+
+errno_t locate_tracks_on_img(
+	image_t *img,
+	const void *tracker_ctx_vp,
+	uint8_t dim_coef
+) {
+	tracker_context_t *tracker_ctx = (tracker_context_t*)tracker_ctx_vp;
+	if (!tracker_ctx || !tracker_ctx->active_tracks)
+		return EINVAL;
+
+	if (dim_coef < MAX_DIM_COEF)
+		dim_img(img, dim_coef);
+
+	uint32_t yellow_color = COLOR_RGB_ENCODE(255, 255, 0);
+	for (size_t i = 0; i < tracker_ctx->active_tracks->size; i++) {
+		track_t *trk = (track_t *)vector_get(tracker_ctx->active_tracks, i);
+		if (!trk)
+			continue;
+		if (trk->age > 1 && trk->missed_frames == 0) {
+
+			if (trk->abnormality > 8) {
+				draw_line_on_img(img, trk->previous, trk->current, COLOR_RGB_ENCODE(255, 0, 0));
+				locate_single_point_on_img(img, trk->current, COLOR_RGB_ENCODE(255, 0, 0), 4);
+			} else {
+				draw_line_on_img(img, trk->previous, trk->current, COLOR_RGB_ENCODE(255, 255, 0));
+				locate_single_point_on_img(img, trk->current, COLOR_RGB_ENCODE(255, 255, 0), 2);
+			}
+		}
+	}
 	return OK;
 }

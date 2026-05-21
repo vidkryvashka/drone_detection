@@ -6,7 +6,7 @@
 
 
 #define DEAFAULT_DIM_COEF 2
-#define MAX_DIM_COEF 12
+#define MAX_DIM_COEF 16
 
 
 /**
@@ -73,25 +73,6 @@ errno_t images_to_video(
 #define COLOR_A_DECODE(color) ((color)         & 0xFF)
 
 
-
-
-/**
- * @brief locate_keypoints_on_img exactly
- * 
- * @param image image_t* would be nice if grey
- * @param keypoints vector* <pixel_coord_t> with information
- * @param dim_coef uint8_t	0 - MAX_DIM_COEF brightness lvl for original pixels
- * @param color uint32_t in case channel GRAY: alfa is used as brightness lvl
- * @param is_img_empty bool in case there is no sense to dim, just optimization
- */
-errno_t locate_keypoints_on_img(
-	image_t *img,
-	const vector_t *keypoints,
-	const uint8_t dim_coef,
-	const uint32_t color,
-	const bool is_img_empty
-);
-
 errno_t locate_single_point_on_img(
 	image_t *img,
 	const pixel_coord_t pixel_coord,
@@ -103,10 +84,14 @@ errno_t locate_clusters_on_img(
 	image_t *img,
 	const vector_t *keypoints,
 	const void *cctx_vp,
-	const uint8_t dim_coef,
-	const bool is_img_empty
+	const uint8_t dim_coef
 );
 
 
+errno_t locate_tracks_on_img(
+	image_t *img,
+	const void *tracker_ctx_vp,
+	uint8_t dim_coef
+);
 
 #endif

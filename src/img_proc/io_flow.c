@@ -1,8 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
-#include <time.h>
-
 #include <string.h>
+#include <time.h>
 
 #include "defs.h"
 #include "img_defs.h"
@@ -15,11 +14,12 @@
 
 
 /**
- * @brief function for test and as example for fuhrther video stream implementation
+ * @brief ...
  */
 static errno_t process_one_image(
 	const main_conf_t *conf,
-	vision_conf_t *vconf
+	vision_conf_t *vconf,
+	tracker_context_t *tracker_ctx
 ) {
 	image_t* img = image_load(conf->input_filepath, GRAY);
 	if (!img) {
@@ -31,8 +31,13 @@ static errno_t process_one_image(
 
 	vector_t *kpts = fast9(img, vconf->fast9_threshold);
 	clusters_context_t cctx = dbscan(kpts, vconf, conf->is_test);
+	update_tracker(tracker_ctx, cctx.centers);
+	if (tracker_ctx)
+		printf(" got tracks ntid %d ", tracker_ctx->next_track_id);
 
-	locate_clusters_on_img(img, kpts, &cctx, conf->dim_coef, false);
+	locate_clusters_on_img(img, kpts, &cctx, MAX_DIM_COEF);
+	locate_tracks_on_img(img, tracker_ctx, conf->dim_coef);
+
 	if (image_save_jpg(conf->input_filepath, conf->output_dir, img, conf->is_test) != OK)
 		ddloge(TAG, "failed to save image");
 
@@ -42,7 +47,6 @@ static errno_t process_one_image(
 		vector_destroy(cctx.centers);
 	vector_destroy(kpts);
 	image_free(img);
-
 	return OK;
 }
 
@@ -60,6 +64,12 @@ static errno_t process_img_dir(
 		ddloge(TAG, "couldn't get_filepathes_from_dir %s", conf->input_img_dir);
 		return EIO;
 	}
+	tracker_context_t tracker_ctx = {
+		.active_tracks = vector_create(10, sizeof(track_t)),
+		.next_track_id = 0,
+		.max_distance = 50,
+		.max_missed = 5
+	};
 
 	clock_t start = clock();
 	for (size_t i = 0; i < filenames->size; i++) {
@@ -68,13 +78,14 @@ static errno_t process_img_dir(
 		if (!filename)
 			break;
 		snprintf(conf->input_filepath, STR_MAX_LEN, "%s/%s", conf->input_img_dir , filename->name);
-		process_one_image(conf, vconf);
+		process_one_image(conf, vconf, &tracker_ctx);
 	}
 	double cpu_time_used_ms = ((double)(clock() - start)) / CLOCKS_PER_SEC * 1000;
 	printf(" %.0f ms\n", cpu_time_used_ms);
 
 	images_to_video(conf->output_dir, DEFAULT_OUTPUT_DIR);
 
+	vector_destroy(tracker_ctx.active_tracks);
 	vector_destroy(filenames);
 	return OK;	// hope so
 }
@@ -91,9 +102,9 @@ errno_t apply_io_mode(
 	vision_conf_t vconf = {
 		.frame_width = 0,
 		.frame_height = 0,
-		.dbscan_max_distance_img_diagonal_percent = DEFAULT_DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT,
+		.dbscan_max_distance_img_diagonal_percent = DBSCAN_DEFAULT_MAX_DISTANCE_IMG_DIAGONAL_PERCENT,
 		.dbscan_min_cluster_size = DBSCAN_MIN_CLUSTER_SIZE,
-		.dbscan_enable_geometry_filtering = 0,
+		.dbscan_enable_geometry_filtering = 1,
 		.fast9_threshold = DEFAULT_THRESHOLD
 	};
 
@@ -106,7 +117,7 @@ errno_t apply_io_mode(
 		return EINVAL;
 	case single_img_file:
 		conf->is_test = 1;
-		err = process_one_image(conf, &vconf);
+		err = process_one_image(conf, &vconf, NULL);
 		break;
 	case input_img_dir:
 		err = process_img_dir(conf, &vconf);

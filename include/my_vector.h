@@ -73,6 +73,15 @@ errno_t vector_set(vector_t *vec, size_t index, void *val);
 
 
 /**
+ * @brief Erases value by index, aligns the rest of elements
+ * 
+ * @param vec
+ * @param index
+ */
+errno_t vector_erase(vector_t *vec, const size_t index);
+
+
+/**
  * @brief Clear vector (set size to 0)
  * 
  * @param vec 

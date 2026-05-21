@@ -53,7 +53,7 @@ errno_t vector_push_back(
 	const void *element
 ) {
 	if (!vec || !element) {
-		ddloge(TAG, "(!vec || !element)");
+		ddloge(TAG, "invalid args");
 		return EINVAL;
 	}
 
@@ -86,6 +86,36 @@ errno_t vector_set(
 	}
 	if (index >= vec->size)
 		vec->size = index + 1;
+
+	return OK;
+}
+
+
+errno_t vector_erase(
+	vector_t *vec,
+	const size_t index
+) {
+	if (!vec) {
+		ddloge(TAG, "invalid args");
+		return EINVAL;
+	}
+
+	if (index >= vec->size) {
+		ddloge(TAG, "index %zu out of bounds (size %zu)", index, vec->size);
+		return EINVAL;
+	}
+
+	if (index < vec->size - 1) {
+		void *dest = (char*)vec->data + index * vec->sizeof_element;
+		void *src = (char*)dest + vec->sizeof_element;
+		size_t bytes_to_move = (vec->size - index - 1) * vec->sizeof_element;
+
+		memmove(dest, src, bytes_to_move);
+	}
+
+	vec->size--;
+	void *freed_tail = (char*)vec->data + vec->size * vec->sizeof_element;
+	memset(freed_tail, 0, vec->sizeof_element);
 
 	return OK;
 }

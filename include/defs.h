@@ -34,7 +34,7 @@ typedef struct {
 	char input_filepath[STR_MAX_LEN + 1];
 	char input_img_dir[STR_MAX_LEN + 1];
 	char output_dir[STR_MAX_LEN + 1];
-	uint8_t dim_coef;	// 0 - 8 where 0 is black. applies only while saving image
+	uint8_t dim_coef;	// 0 - MAX_DIM_COEF where 0 is black. applies only while saving image
 	enum IO_MODES io_mode;
 	bool is_test;
 } main_conf_t;

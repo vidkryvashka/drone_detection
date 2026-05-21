@@ -49,36 +49,42 @@ static errno_t expand_cluster(
 	const vector_t *keypoints,
 	clusters_context_t *cctx
 ) {
+	// Creating a widthwise traversal (BFS) queue
 	vector_t *seeds = vector_create(keypoints->size, sizeof(size_t));
 	if (!seeds) {
-		ddloge(TAG, "invalid args");
+		ddloge(TAG, "couldn't vector_create seeds");
 		return ENOMEM;
 	}
 
+	// find the first neighbors for the starting point
 	if (get_neighbors(keypoints, index, max_distance, seeds) != OK) {
 		vector_destroy(seeds);
-		ddloge(TAG, "couldn't get_neighbors");
+		ddloge(TAG, "couldn't get_neighbors for index %zu", index);
 		return -1;
 	}
 
+	// Check on Core Point: if there are not enough neighbors, it's noise
 	if (seeds->size < min_points) {
 		cctx->ids[index] = DBSCAN_NOISE;
 		vector_destroy(seeds);
 		return OK;
 	}
 
+	// mark the starting point and its first neighbors with the current cluster ID
 	cctx->ids[index] = cctx->unique_count;
 	for (size_t i = 0; i < seeds->size; i++) {
-		uint8_t neighbor_index = *(size_t*)vector_get(seeds, i);
+		size_t neighbor_index = *(size_t*)vector_get(seeds, i);
 		cctx->ids[neighbor_index] = cctx->unique_count;
 	}
 
+	// start bypassing the queue. seeds->size can grow dynamically during push_back
 	for (size_t seed_index = 0; seed_index < seeds->size; seed_index++) {
-		uint8_t current_index = *(size_t *)vector_get(seeds, seed_index);
+		size_t current_index = *(size_t *)vector_get(seeds, seed_index);
+		
 		vector_t *neighbors = vector_create(keypoints->size, sizeof(size_t));
 		if (!neighbors) {
 			vector_destroy(seeds);
-			ddloge(TAG, "couldn't vector_create");
+			ddloge(TAG, "couldn't vector_create neighbors");
 			return ENOMEM;
 		}
 
@@ -89,12 +95,19 @@ static errno_t expand_cluster(
 			return -1;
 		}
 
+		// If the current point is also dense (Core Point), we expand the cluster
 		if (neighbors->size >= min_points) {
 			for (size_t j = 0; j < neighbors->size; j++) {
 				size_t n_index = *(size_t *)vector_get(neighbors, j);
-				if (cctx->ids[n_index] == DBSCAN_CLUSTER_UNCLASSIFIED || cctx->ids[n_index] == DBSCAN_NOISE) {
-					if (cctx->ids[n_index] == DBSCAN_CLUSTER_UNCLASSIFIED)
-						vector_push_back(seeds, &n_index);
+
+				// If the point has not been considered at all
+				if (cctx->ids[n_index] == DBSCAN_CLUSTER_UNCLASSIFIED) {
+					// Маркуємо її як "в черзі", щоб інші сусіди не додали її повторно
+					cctx->ids[n_index] = cctx->unique_count; 
+					vector_push_back(seeds, &n_index);
+				} 
+				// If it used to be noise, now it has become a peripheral point of the cluster
+				else if (cctx->ids[n_index] == DBSCAN_NOISE) {
 					cctx->ids[n_index] = cctx->unique_count;
 				}
 			}
@@ -133,14 +146,14 @@ static errno_t calculate_and_filter_cluster_centers(
 	}
 
 	// minimums init (maximums are 0 already due to calloc)
-	for (uint8_t g = 0; g < cctx->unique_count; g++) {
+	for (uint16_t g = 0; g < cctx->unique_count; g++) {
 		stats[g].min_x = 0xFFFF;
 		stats[g].min_y = 0xFFFF;
 	}
 
 	// first pass: each cluster metrics collection
 	for (size_t i = 0; i < keypoints->size; i++) {
-		uint8_t id = cctx->ids[i];
+		uint16_t id = cctx->ids[i];
 
 		if (id == DBSCAN_NOISE || id == DBSCAN_CLUSTER_UNCLASSIFIED || id >= cctx->unique_count)
 			continue;
@@ -160,7 +173,7 @@ static errno_t calculate_and_filter_cluster_centers(
 	}
 
 	// second pass: geometry, filtering and calculating final valid centers
-	for (uint8_t g = 0; g < cctx->unique_count; g++) {
+	for (uint16_t g = 0; g < cctx->unique_count; g++) {
 		if (stats[g].count == 0) {
 			continue; // skip empty clusters
 		}
@@ -211,7 +224,7 @@ static clusters_context_t dbscan_core(
 	}
 
 	clusters_context_t cctx = {
-		.ids = calloc(keypoints->size, sizeof(uint8_t)),
+		.ids = calloc(keypoints->size, sizeof(uint16_t)),
 		.size = keypoints->size,
 		.unique_count = 0,
 		.centers = NULL
@@ -244,7 +257,7 @@ static clusters_context_t dbscan_core(
 	calculate_and_filter_cluster_centers(&cctx, keypoints, vconf, is_test);
 
 	// --- SECONDARY DBSCAN: MERGE CLOUDS OF CENTERS ---
-	if (allow_merge && cctx.centers->size > DBSCAN_MAX_CENTERS_BEFORE_RECURSION) {
+	if (allow_merge && cctx.centers->size > DBSCAN_MAX_CENTERS_COUNT_BEFORE_RECURSION) {
 		if (is_test) {
 			ddlogw(TAG, "too many centers (%zu). Running secondary DBSCAN to merge them...", cctx.centers->size);
 		}
@@ -252,7 +265,7 @@ static clusters_context_t dbscan_core(
 		// Backup vconf fields to temporarily override them for centers merging
 		uint16_t orig_min_cluster = vconf->dbscan_min_cluster_size;
 		bool orig_geom_filter = vconf->dbscan_enable_geometry_filtering;
-		uint8_t orig_dist_percent = vconf->dbscan_max_distance_img_diagonal_percent;
+		uint16_t orig_dist_percent = vconf->dbscan_max_distance_img_diagonal_percent;
 
 		vconf->dbscan_min_cluster_size = 1;
 		vconf->dbscan_enable_geometry_filtering = false;
@@ -266,15 +279,10 @@ static clusters_context_t dbscan_core(
 		vconf->dbscan_enable_geometry_filtering = orig_geom_filter;
 		vconf->dbscan_max_distance_img_diagonal_percent = orig_dist_percent;
 
-		// Overwrite old centers vector with the newly merged vector
 		vector_destroy(cctx.centers);
 		cctx.centers = merged_cctx.centers;
 
-		// Clean up the internal ids array from the secondary run (we don't need it)
 		free(merged_cctx.ids);
-		
-		// Note: cctx.ids still maps points to the ORIGINAL raw clusters. 
-		// The centers vector now contains the distilled final targets.
 	}
 
 	return cctx;
