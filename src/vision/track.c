@@ -109,7 +109,7 @@ static void detect_anomalous_track_old(
 	if (!tracker || !tracker->active_tracks || tracker->active_tracks->size == 0) 
 		return;
 
-	int32_t sum_vx = 0, sum_vy = 0;
+	int32_t sum_dx = 0, sum_dy = 0;
 	size_t valid_tracks_count = 0;
 
 	// 1. reset the old marks and calculate the average movement (camera/background movement)
@@ -118,8 +118,8 @@ static void detect_anomalous_track_old(
 
 		// We take into account only stable tracks that are currently being updated
 		if (trk->age > 1 && trk->missed_frames == 0) {
-			sum_vx += trk->dx;
-			sum_vy += trk->dy;
+			sum_dx += trk->dx;
+			sum_dy += trk->dy;
 			valid_tracks_count++;
 		}
 	}
@@ -128,8 +128,8 @@ static void detect_anomalous_track_old(
 	if (valid_tracks_count < 3) 
 		return;
 
-	int32_t global_dx = sum_vx / (int32_t)valid_tracks_count;
-	int32_t global_dy = sum_vy / (int32_t)valid_tracks_count;
+	int32_t global_dx = sum_dx / (int32_t)valid_tracks_count;
+	int32_t global_dy = sum_dy / (int32_t)valid_tracks_count;
 
 	// 2. look for the track with the largest deviation from the global movement
 	uint32_t max_deviation_sq = 0;
@@ -153,7 +153,7 @@ static void detect_anomalous_track(tracker_context_t *tracker) {
 	if (!tracker || !tracker->active_tracks || tracker->active_tracks->size == 0) 
 		return;
 
-	int32_t sum_vx = 0, sum_vy = 0;
+	int32_t sum_dx = 0, sum_dy = 0;
 	size_t valid_tracks_count = 0;
 
 	// 1. find the global motion vector of the background
@@ -161,19 +161,19 @@ static void detect_anomalous_track(tracker_context_t *tracker) {
 		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
 
 		if (trk->age > 2 && trk->missed_frames == 0) { // age > 2 щоб була prev_velocity
-			sum_vx += trk->dx;
-			sum_vy += trk->dy;
+			sum_dx += trk->dx;
+			sum_dy += trk->dy;
 			valid_tracks_count++;
 		}
 	}
 
 	if (valid_tracks_count < 3) return;
 
-	int32_t global_vx = sum_vx / (int32_t)valid_tracks_count;
-	int32_t global_vy = sum_vy / (int32_t)valid_tracks_count;
+	int16_t global_dx = sum_dx / (int16_t)valid_tracks_count;
+	int16_t global_dy = sum_dy / (int16_t)valid_tracks_count;
 
-	uint32_t max_deviation_sq = 0;
-	int best_anomaly_idx = -1;
+	// uint32_t max_deviation_sq = 0;
+	// int best_anomaly_idx = -1;
 
 	for (size_t i = 0; i < tracker->active_tracks->size; i++) {
 		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
@@ -201,10 +201,10 @@ static void detect_anomalous_track(tracker_context_t *tracker) {
 			}
 
 			// --- ANOMALY CALCULATION ---
-			int32_t diff_x = trk->dx - global_vx;
-			int32_t diff_y = trk->dy - global_vy;
+			int16_t dx = trk->dx - global_dx;
+			int16_t dy = trk->dy - global_dy;
 			
-			uint32_t deviation_sq = diff_x * diff_x + diff_y * diff_y;
+			uint32_t deviation_sq = dx * dx + dy * dy;
 			trk->abnormality = sqrt(deviation_sq);
 			//if (deviation_sq > max_deviation_sq) {
 			//	max_deviation_sq = deviation_sq;
@@ -213,7 +213,7 @@ static void detect_anomalous_track(tracker_context_t *tracker) {
 		}
 	}
 
-	//uint32_t anomaly_threshold_sq = 25; // 5 пікселів різниці з фоном
+	//uint32_t anomaly_threshold_sq = 25; // 5 pixels diff with background
 	//if (best_anomaly_idx != -1 && max_deviation_sq > anomaly_threshold_sq) {
 	//	track_t *trk = (track_t *)vector_get(tracker->active_tracks, best_anomaly_idx);
 	//	trk->abnormality = 10; // crunch to pass > 8 to paint as red target
@@ -222,7 +222,8 @@ static void detect_anomalous_track(tracker_context_t *tracker) {
 
 errno_t update_tracker(
 	tracker_context_t *tracker,
-	const vector_t *new_centers
+	const vector_t *new_centers,
+	const bool is_test
 ) {
 	if (!tracker || !tracker->active_tracks)
 		return EINVAL;
@@ -237,6 +238,9 @@ errno_t update_tracker(
 	match_new_centers(tracker, new_centers, initial_tracks_count, track_updated);
 	handle_missing_tracks(tracker, initial_tracks_count, track_updated);
 	detect_anomalous_track(tracker);
+
+	if (is_test)
+		printf(" got tracks ntid %d ", tracker->next_track_id);
 
 	free(track_updated);
 	return OK;

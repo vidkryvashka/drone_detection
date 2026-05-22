@@ -4,7 +4,6 @@
 
 #include "defs.h"
 #include "my_vector.h"
-#include "img_defs.h"
 #include "vision.h"
 
 #define TAG "fast9 "

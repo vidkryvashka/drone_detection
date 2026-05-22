@@ -24,7 +24,7 @@ For now main case is to have a folder INPUT_DIR with images aka 1.jpg, 2.jpg, ..
 make custom_run INPUT_DIR=$INPUT_DIR FLAGS="-t 80 -d 0" OUTPUT_DIR=$output_DIR OUTPUT_VIDEONAME="../expl.mp4"
 ```
 
-## dependencies
+## dependencies for loading & saving (io) image
 single file libs in include/foreign/
 
 	- stb_image.h

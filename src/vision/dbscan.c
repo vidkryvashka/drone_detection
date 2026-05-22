@@ -5,7 +5,6 @@
 #include <string.h>
 
 #include "defs.h"
-#include "img_defs.h"
 #include "my_vector.h"
 #include "vision.h"
 
@@ -65,7 +64,7 @@ static errno_t expand_cluster(
 
 	// Check on Core Point: if there are not enough neighbors, it's noise
 	if (seeds->size < min_points) {
-		cctx->ids[index] = DBSCAN_NOISE;
+		cctx->ids[index] = DBSCAN_POINT_NOISE;
 		vector_destroy(seeds);
 		return OK;
 	}
@@ -101,13 +100,13 @@ static errno_t expand_cluster(
 				size_t n_index = *(size_t *)vector_get(neighbors, j);
 
 				// If the point has not been considered at all
-				if (cctx->ids[n_index] == DBSCAN_CLUSTER_UNCLASSIFIED) {
+				if (cctx->ids[n_index] == DBSCAN_CLUSTER_POINT_UNCLASSIFIED) {
 					// Маркуємо її як "в черзі", щоб інші сусіди не додали її повторно
 					cctx->ids[n_index] = cctx->unique_count; 
 					vector_push_back(seeds, &n_index);
 				} 
 				// If it used to be noise, now it has become a peripheral point of the cluster
-				else if (cctx->ids[n_index] == DBSCAN_NOISE) {
+				else if (cctx->ids[n_index] == DBSCAN_POINT_NOISE) {
 					cctx->ids[n_index] = cctx->unique_count;
 				}
 			}
@@ -155,7 +154,7 @@ static errno_t calculate_and_filter_cluster_centers(
 	for (size_t i = 0; i < keypoints->size; i++) {
 		uint16_t id = cctx->ids[i];
 
-		if (id == DBSCAN_NOISE || id == DBSCAN_CLUSTER_UNCLASSIFIED || id >= cctx->unique_count)
+		if (id == DBSCAN_POINT_NOISE || id == DBSCAN_CLUSTER_POINT_UNCLASSIFIED || id >= cctx->unique_count)
 			continue;
 
 		pixel_coord_t *p = (pixel_coord_t *)vector_get(keypoints, i);
@@ -184,8 +183,8 @@ static errno_t calculate_and_filter_cluster_centers(
 		// --- filtering clouds criteria ---
 		
 		// size > 40%
-		bool is_too_large = (cluster_w > (vconf->frame_width  * 4 / 10)) || 
-		                    (cluster_h > (vconf->frame_height * 4 / 10));
+		bool is_too_large = (cluster_w > (vconf->frame_size.x  * 4 / 10)) || 
+		                    (cluster_h > (vconf->frame_size.y * 4 / 10));
 
 		// Sides relation > 3.5.
 		bool is_too_eccentric = (cluster_w * 2 > cluster_h * 7) || 
@@ -234,14 +233,14 @@ static clusters_context_t dbscan_core(
 	}
 
 	uint16_t max_distance = sqrt(
-		vconf->frame_width * vconf->frame_width + vconf->frame_height * vconf->frame_height
+		vconf->frame_size.x * vconf->frame_size.x + vconf->frame_size.y * vconf->frame_size.y
 	) / 100 * vconf->dbscan_max_distance_img_diagonal_percent;
 
 	for (size_t i = 0; i < keypoints->size; i++)
-		cctx.ids[i] = DBSCAN_CLUSTER_UNCLASSIFIED;
+		cctx.ids[i] = DBSCAN_CLUSTER_POINT_UNCLASSIFIED;
 
 	for (size_t i = 0; i < keypoints->size; i++)
-		if (cctx.ids[i] == DBSCAN_CLUSTER_UNCLASSIFIED)
+		if (cctx.ids[i] == DBSCAN_CLUSTER_POINT_UNCLASSIFIED)
 			if (expand_cluster(i, max_distance, vconf->dbscan_min_cluster_size, keypoints, &cctx) == OK)
 				cctx.unique_count++;
 

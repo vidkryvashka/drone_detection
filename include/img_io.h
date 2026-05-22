@@ -2,11 +2,19 @@
 #define IMG_IO_H
 
 #include "defs.h"
-#include "img_defs.h"
+#include "my_vector.h"
 
 
-#define DEAFAULT_DIM_COEF 2
+#define DEFAULT_DIM_COEF 2
 #define MAX_DIM_COEF 16
+
+typedef struct {
+	char input_filepath[STR_MAX_LEN + 1];
+	char input_img_dir[STR_MAX_LEN + 1];
+	char output_dir[STR_MAX_LEN + 1];
+	uint8_t dim_coef; // (0 - MAX_DIM_COEF) where 0 is black original image with painted metadata only. applies while saving image
+	enum IO_MODES io_mode;
+} img_io_conf_t;
 
 
 /**
@@ -73,6 +81,21 @@ errno_t images_to_video(
 #define COLOR_A_DECODE(color) ((color)         & 0xFF)
 
 
+inline void dim_img(
+	image_t *img,
+	const uint8_t dim_coef
+) {
+	size_t total_bytes = (size_t)img->width * img->height * img->channel;
+	for (size_t i = 0; i < total_bytes; i++)
+		img->pixels[i] = (uint8_t)((int)img->pixels[i] * dim_coef / MAX_DIM_COEF);
+}
+
+errno_t locate_keypoints_on_img(
+	image_t *img,
+	const vector_t *keypoints,
+	const uint32_t color
+);
+
 errno_t locate_single_point_on_img(
 	image_t *img,
 	const pixel_coord_t pixel_coord,
@@ -84,14 +107,13 @@ errno_t locate_clusters_on_img(
 	image_t *img,
 	const vector_t *keypoints,
 	const void *cctx_vp,
-	const uint8_t dim_coef
+	const bool enable_print_clusters
 );
 
 
 errno_t locate_tracks_on_img(
 	image_t *img,
-	const void *tracker_ctx_vp,
-	uint8_t dim_coef
+	const void *tracker_ctx_vp
 );
 
 #endif

@@ -10,6 +10,25 @@
 
 #define VERSION "69"
 
+enum CHANNELS {
+	GRAY = 1,	// mostly used
+	RGB = 3,
+	RGBA = 4
+};
+
+typedef struct {
+	uint8_t *pixels;
+	uint16_t width;
+	uint16_t height;
+	enum CHANNELS channel;
+} image_t;
+
+typedef struct {
+	uint16_t x;
+	uint16_t y;
+} pixel_coord_t;
+
+
 #define ddlogi(_ddtag, _ddmsg, ...)	\
 	printf(_ddtag "%s: " _ddmsg "\n", __func__, ##__VA_ARGS__)
 
@@ -31,13 +50,11 @@ enum IO_MODES {
 };
 
 typedef struct {
-	char input_filepath[STR_MAX_LEN + 1];
-	char input_img_dir[STR_MAX_LEN + 1];
-	char output_dir[STR_MAX_LEN + 1];
-	uint8_t dim_coef;	// 0 - MAX_DIM_COEF where 0 is black. applies only while saving image
-	enum IO_MODES io_mode;
+	void *img_io_conf;
+	void *vision_conf;
 	bool is_test;
 } main_conf_t;
+
 
 errno_t parse_conf(
 	int argc, char **argv,

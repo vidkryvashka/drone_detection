@@ -2,7 +2,6 @@
 #include <stdint.h>
 #include <dirent.h>
 #include "defs.h"
-#include "img_defs.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "foreign/stb_image.h"
@@ -11,7 +10,6 @@
 
 #include "defs.h"
 #include "my_vector.h"
-#include "img_defs.h"
 #include "img_io.h"
 #include "vision.h"
 
@@ -265,17 +263,6 @@ errno_t images_to_video(
 }
 
 
-
-static void dim_img(
-	image_t *img,
-	const uint8_t dim_coef
-) {
-	size_t total_bytes = (size_t)img->width * img->height * img->channel;
-	for (size_t i = 0; i < total_bytes; i++)
-		img->pixels[i] = (uint8_t)((int)img->pixels[i] * dim_coef / MAX_DIM_COEF);
-}
-
-
 errno_t locate_single_point_on_img(
 	image_t *img,
 	const pixel_coord_t pixel_coord,
@@ -314,25 +301,56 @@ errno_t locate_single_point_on_img(
 }
 
 
+errno_t locate_keypoints_on_img(
+	image_t *img,
+	const vector_t *keypoints,
+	const uint32_t color
+) {
+	if (!img || !img->pixels || !keypoints) {
+		ddloge(TAG, "invalid args");
+		return EINVAL;
+	}
+	for (size_t i = 0; i < keypoints->size; i++) {
+		pixel_coord_t* p = vector_get(keypoints, i);
+		if (!p)
+			continue;
+		if (p->x < img->width && p->y < img->height) {
+			size_t base_idx = ((size_t)p->y * img->width + p->x) * img->channel;
+			if (img->channel == GRAY)
+				img->pixels[base_idx] = COLOR_A_DECODE(color);
+			else if (img->channel == RGB || img->channel == RGBA) {
+				img->pixels[base_idx + 0] = COLOR_R_DECODE(color);
+				img->pixels[base_idx + 1] = COLOR_G_DECODE(color);
+				img->pixels[base_idx + 2] = COLOR_B_DECODE(color);
+				if (img->channel == RGBA)
+					img->pixels[base_idx + 3] = COLOR_A_DECODE(color);
+			}
+		}
+	}
+	return OK;
+}
+
+
 static uint32_t generate_cluster_color(uint16_t cluster_id) {
-	if (cluster_id == DBSCAN_NOISE) {
+	if (cluster_id == DBSCAN_POINT_NOISE) {
 		// Keep noise dim
-		return COLOR_RGB_ENCODE(80, 80, 80); 
+		return COLOR_RGB_ENCODE(90, 90, 90); 
 	}
 
+	// it's better on its own
 	static const uint32_t bright_palette[] = {
-		COLOR_RGB_ENCODE(255, 0, 50),    // 0: Неоновий Червоний (ближче до карміну, ультра-видимий)
-		COLOR_RGB_ENCODE(0, 255, 0),     // 1: Яскравий Лайм (максимальна чутливість ока)
-		COLOR_RGB_ENCODE(100, 180, 255), // 2: ВИПРАВЛЕНО: Електрик Синій (замість темного синього — яскравий неоновий блакить)
-		COLOR_RGB_ENCODE(255, 255, 0),   // 3: Чистий Жовтий (кислотний)
-		COLOR_RGB_ENCODE(255, 0, 255),   // 4: Маджента / Фуксія
-		COLOR_RGB_ENCODE(0, 255, 255),   // 5: Яскравий Ціан / Бірюза
-		COLOR_RGB_ENCODE(255, 140, 0),   // 6: Вогняний Помаранчевий
-		COLOR_RGB_ENCODE(210, 100, 255), // 7: ВИПРАВЛЕНО: Світло-Фіолетовий / Яскравий Бузковий (замість темного)
-		COLOR_RGB_ENCODE(0, 255, 140),   // 8: Неонова М'ята
-		COLOR_RGB_ENCODE(255, 50, 150),  // 9: Яскравий Хот-Пінк
+		COLOR_RGB_ENCODE(255, 0, 50),    // 0:  Неоновий Червоний
+		COLOR_RGB_ENCODE(0, 255, 0),     // 1:  Яскравий Лайм (максимальна чутливість ока)
+		COLOR_RGB_ENCODE(100, 180, 255), // 2:  Електрик Синій
+		COLOR_RGB_ENCODE(255, 255, 0),   // 3:  Чистий Жовтий (кислотний)
+		COLOR_RGB_ENCODE(255, 0, 255),   // 4:  Маджента / Фуксія
+		COLOR_RGB_ENCODE(0, 255, 255),   // 5:  Яскравий Ціан / Бірюза
+		COLOR_RGB_ENCODE(255, 140, 0),   // 6:  Вогняний Помаранчевий
+		COLOR_RGB_ENCODE(210, 100, 255), // 7:  Світло-Фіолетовий / Яскравий Бузковий
+		COLOR_RGB_ENCODE(0, 255, 140),   // 8:  Неонова М'ята
+		COLOR_RGB_ENCODE(255, 50, 150),  // 9:  Яскравий Хот-Пінк
 		COLOR_RGB_ENCODE(170, 255, 0),   // 10: Кислотний Шартрез
-		COLOR_RGB_ENCODE(190, 255, 190)  // 11: МОДИФІКОВАНО: Світло-салатовий неоновий (краще за білий, не плутається із бліками)
+		COLOR_RGB_ENCODE(190, 255, 190)  // 11: Світло-салатовий неоновий
 	};
 
 	size_t palette_size = sizeof(bright_palette) / sizeof(bright_palette[0]);
@@ -360,7 +378,7 @@ errno_t locate_clusters_on_img(
 	image_t *img,
 	const vector_t *keypoints,
 	const void *cctx_vp,
-	const uint8_t dim_coef
+	const bool enable_print_clusters
 ) {
 	if (!img || !keypoints || !cctx_vp) {
 		return EINVAL;
@@ -370,9 +388,6 @@ errno_t locate_clusters_on_img(
 		ddloge(TAG, "failed to convert image to RGB");
 		return -1;
 	}
-
-	if (dim_coef < MAX_DIM_COEF)
-		dim_img(img, dim_coef);
 
 	clusters_context_t *cctx = (clusters_context_t*)cctx_vp;
 	for (size_t i = 0; i < keypoints->size; i++) {
@@ -385,14 +400,12 @@ errno_t locate_clusters_on_img(
 		locate_single_point_on_img(img, *point, color, 1);
 	}
 
-	// if (cctx->centers) {
-	// 	for (size_t i = 0; i < cctx->centers->size; i++) {
-	// 		pixel_coord_t *center = (pixel_coord_t *)vector_get(cctx->centers, i);
-	// 		if (center) {
-	// 			locate_single_point_on_img(img, *center, COLOR_RGB_ENCODE(255, 255, 0), 3);
-	// 		}
-	// 	}
-	// }
+	if (enable_print_clusters && cctx->centers)
+		for (size_t i = 0; i < cctx->centers->size; i++) {
+			pixel_coord_t *center = (pixel_coord_t *)vector_get(cctx->centers, i);
+			if (center)
+				locate_single_point_on_img(img, *center, COLOR_RGB_ENCODE(255, 255, 0), 3);
+		}
 
 	return OK;
 }
@@ -455,15 +468,11 @@ static errno_t draw_line_on_img(
 
 errno_t locate_tracks_on_img(
 	image_t *img,
-	const void *tracker_ctx_vp,
-	uint8_t dim_coef
+	const void *tracker_ctx_vp
 ) {
 	tracker_context_t *tracker_ctx = (tracker_context_t*)tracker_ctx_vp;
 	if (!tracker_ctx || !tracker_ctx->active_tracks)
 		return EINVAL;
-
-	if (dim_coef < MAX_DIM_COEF)
-		dim_img(img, dim_coef);
 
 	uint32_t yellow_color = COLOR_RGB_ENCODE(255, 255, 0);
 	for (size_t i = 0; i < tracker_ctx->active_tracks->size; i++) {
