@@ -26,15 +26,15 @@ static errno_t process_one_image(
 
 
 	// core processing
-	vector_t *kpts = fast9(img, vconf->fast9_threshold);
-	clusters_context_t cctx = dbscan(kpts, vconf, conf->is_test);
-	update_tracker(tracker_ctx, cctx.centers, conf->is_test);
+	vector_t *kpts = fast9(img, vconf->fast9_threshold, conf->dbg_lvl);
+	clusters_context_t cctx = dbscan(kpts, vconf, conf->dbg_lvl);
+	update_tracker(tracker_ctx, cctx.centers, conf->dbg_lvl);
 
 
 	dim_img(img, iio_conf->dim_coef);
 	locate_clusters_on_img(img, kpts, &cctx, true);
 	locate_tracks_on_img(img, tracker_ctx);
-	if (image_save_jpg(iio_conf->input_filepath, iio_conf->output_dir, img, conf->is_test) != OK)
+	if (image_save_jpg(iio_conf->input_filepath, iio_conf->output_dir, img, conf->dbg_lvl) != OK)
 		ddloge(TAG, "failed to save image");
 
 	if (cctx.ids)
@@ -112,7 +112,6 @@ errno_t apply_io_mode(
 		ddloge(TAG, "io_mode not selected");
 		return EINVAL;
 	case single_img_file:
-		conf->is_test = 1;
 		err = process_one_image(conf, NULL);
 		break;
 	case input_img_dir:

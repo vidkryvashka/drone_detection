@@ -5948,7 +5948,8 @@ static void fastNonmaxSuppression(
 
 vector_t* fast9(
 	const image_t *gray_img,
-	const uint8_t threshold
+	const uint8_t threshold,
+	const uint8_t dbg_lvl
 ) {
 	if (gray_img->channel != GRAY) {
 		ddloge(TAG, "accepts only GRAY channel image");
@@ -5965,6 +5966,8 @@ vector_t* fast9(
 
 	vector_destroy(ct);
 	vector_destroy(scores);
+	if (dbg_lvl >= 2)
+		ddlogi(TAG, "size %zu", c->size);
 
 	return c;
 }

@@ -42,7 +42,7 @@ errno_t image_save_jpg(
 	const char* input_filepath,		// filename of saved output must be the same
 	const char* output_dir,
 	const image_t* img,
-	const bool enable_print
+	const uint8_t dbg_lvl
 );
 
 errno_t image_free(

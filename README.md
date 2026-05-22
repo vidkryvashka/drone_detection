@@ -7,25 +7,33 @@ bear -- make # helps to setup clang lints
 
 ## use
 ```
--i --input <char *filename>	image file path, default in Makefile
--i --output_dir <char *output_dir>	folder for outputs
--t --threshold <uint8_t>	fast9 threshold, 	default 70
--d --dim-coef <uint8_t>		0 - 12 value, 0 is black img output, points only, default 3
 -h --help
+-i --input                            path to image file or directory containing images path, default in Makefile
+-i --output_dir                       path to folder for frames output. video goes to default "output" folder
+-d --dim_coef                         0 - 16 value, 0 is black img output, points only, default 2
+   --fast9_threshold                  default 40
+   --dbscan_max_distance              max 2D distance between points to attribute the point to the cluster, default 4
+   --dbscan_min_cluster_size          min points number in cluster, default 3
+   --dbscan_enable_geometry_filtering no arg. may be excessive for optical flow calculate, default off
+   --track_max_distance               the maximum distance in pixels that an object can move in 1 frame, default 50
+   --track_max_missed                 how many frames to wait before deleting a lost track, default 5
+   --dbg_lvl                          0 | 1 | 2
 ```
 examples:
 ```sh
-$ binary -i expl.png -t 70 -d 3
-$ binary expl.png
+$ ./bin -i expl.jpg --fast9_threshold 70
+$ ./bin -i path/to/folder/with/images/ -o path/to/output/images/folder
+$ ./bin expl.png
 ```
 
-For now main case is to have a folder INPUT_DIR with images aka 1.jpg, 2.jpg, ...
-```sh
-make custom_run INPUT_DIR=$INPUT_DIR FLAGS="-t 80 -d 0" OUTPUT_DIR=$output_DIR OUTPUT_VIDEONAME="../expl.mp4"
-```
+Folder with images must contain numbered filenames aka 1.jpg, 2.jpg, ...
+
+Then ffmpeg glues video in output folder nearby binary.
+
 
 ## dependencies for loading & saving (io) image
 single file libs in include/foreign/
 
 	- stb_image.h
 	- stb_image_write.h
+	- ffmpeg installed

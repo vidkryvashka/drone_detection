@@ -148,7 +148,7 @@ errno_t image_save_jpg(
 	const char* input_filepath,
 	const char* output_dir,
 	const image_t* img,
-	const bool enable_print
+	const uint8_t dbg_lvl
 ) {
 	if (!img || !img->pixels || !input_filepath || !output_dir) {
 		ddloge(TAG, "invalid arg");
@@ -170,7 +170,7 @@ errno_t image_save_jpg(
 	snprintf(custom_output_file_path, needed_size, "%s%s%s", output_dir, separator, pure_filename);
 
 	if (stbi_write_jpg(custom_output_file_path, img->width, img->height, img->channel, img->pixels, 0)) {
-		if (enable_print)
+		if (dbg_lvl >= 2)
 			ddlogi(TAG, "saved to \033[0;32m%s\033[0;0m", custom_output_file_path);
 		return OK;
 	}
@@ -333,11 +333,11 @@ errno_t locate_keypoints_on_img(
 
 static uint32_t generate_cluster_color(uint16_t cluster_id) {
 	if (cluster_id == DBSCAN_POINT_NOISE) {
-		// Keep noise dim
+		// keep noise dim
 		return COLOR_RGB_ENCODE(90, 90, 90); 
 	}
 
-	// it's better on its own
+	// keep this pretty
 	static const uint32_t bright_palette[] = {
 		COLOR_RGB_ENCODE(255, 0, 50),    // 0:  Неоновий Червоний
 		COLOR_RGB_ENCODE(0, 255, 0),     // 1:  Яскравий Лайм (максимальна чутливість ока)

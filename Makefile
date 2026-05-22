@@ -5,7 +5,7 @@ SRC_DIR = src
 OBJ_DIR = obj
 BIN_DIR = bin
 TARGET = $(BIN_DIR)/program
-TEST_IMG_PATH = trash/old_images/raw/mavic_in_bush.png
+TEST_IMG_PATH = assets/mavic_in_bush.jpg
 DEFAULT_OUTPUT_DIR = output
 
 CFLAGS_W = -Wall -Wno-unused-variable -Wno-unused-function -Wno-pointer-arith
@@ -39,7 +39,7 @@ run: $(TARGET)
 	./$(TARGET)
 
 test: $(TARGET)
-	./$(TARGET) $(TEST_IMG_PATH)
+	./$(TARGET) $(TEST_IMG_PATH) -o $(DEFAULT_OUTPUT_DIR)
 
 clean:
 	rm -f $(OBJS)

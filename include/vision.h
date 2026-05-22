@@ -8,17 +8,18 @@
 typedef struct {
 	pixel_coord_t frame_size;
 	uint16_t dbscan_max_distance_img_diagonal_percent;
-	uint16_t dbscan_min_cluster_size;
 	uint16_t track_max_distance;
 	uint16_t track_max_missed;
+	uint8_t dbscan_min_cluster_size;
 	bool dbscan_enable_geometry_filtering;
 	uint8_t fast9_threshold;
 } vision_conf_t;
 
 #define FAST9_DEFAULT_THRESHOLD 40
 
-#define DBSCAN_DEFAULT_MAX_DISTANCE_IMG_DIAGONAL_PERCENT	4			// min 2D distance between points to attribute the point to the cluster
-#define DBSCAN_MIN_CLUSTER_SIZE								3			// min points number in cluster
+#define DBSCAN_DEFAULT_MAX_DISTANCE_IMG_DIAGONAL_PERCENT	4			// max 2D distance between points to attribute the point to the cluster
+#define DBSCAN_DEFAULT_MIN_CLUSTER_SIZE						3			// min points number in cluster
+#define DBSCAN_DEFAULT_ENABLE_GEOM_FILTERING				false
 #define DBSCAN_CLUSTER_POINT_UNCLASSIFIED					UINT16_MAX
 #define DBSCAN_POINT_NOISE									UINT16_MAX - 1
 #define DBSCAN_CLUSTER_MAX_UNIQUE_COUNT						UINT16_MAX - 2
@@ -28,17 +29,16 @@ typedef struct {
 #define TRACK_DEFAULT_MAX_MISSED 5
 
 /**
- * @brief Keypoints searching algorithm, took from habr and rewrote
+ * @brief Keypoints search algorithm, took from habr and modified types
  */
 vector_t* fast9(
 	const image_t *gray_img,
-	const uint8_t threshold
+	const uint8_t threshold,
+	const uint8_t dbg_lvl
 );
 
 
-
 typedef struct {
-	size_t size;	// equal to keypoints count
 	vector_t *centers;
 	uint16_t *ids;
 	uint16_t unique_count;
@@ -48,7 +48,7 @@ typedef struct {
 clusters_context_t dbscan(
 	const vector_t *keypoints,
 	vision_conf_t *vconf,
-	bool is_test
+	const uint8_t dbg_lvl
 );
 
 
@@ -68,16 +68,16 @@ typedef struct {
 // The tracker context that lives between process_one_image calls
 typedef struct {
 	vector_t *active_tracks;
-	uint16_t next_track_id;		// Counter for issuing new IDs
-	uint16_t max_distance;		// The maximum distance in pixels that an object can move in 1 frame
-	uint16_t max_missed;		// How many frames to wait before deleting a lost track
+	uint16_t next_track_id;		// counter for issuing new IDs
+	uint16_t max_distance;		// the maximum distance in pixels that an object can move in 1 frame
+	uint16_t max_missed;		// how many frames to wait before deleting a lost track
 } tracker_context_t;
 
 
 errno_t update_tracker(
 	tracker_context_t *tracker,
 	const vector_t *new_centers,
-	const bool is_test
+	const uint8_t dbg_lvl
 );
 
 #endif

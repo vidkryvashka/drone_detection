@@ -52,7 +52,7 @@ enum IO_MODES {
 typedef struct {
 	void *img_io_conf;
 	void *vision_conf;
-	bool is_test;
+	uint8_t dbg_lvl;
 } main_conf_t;
 
 

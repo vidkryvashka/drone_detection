@@ -44,7 +44,7 @@ static errno_t get_neighbors(
 static errno_t expand_cluster(
 	const size_t index,
 	const uint16_t max_distance,
-	const uint16_t min_points,
+	const uint8_t min_cluster_size,
 	const vector_t *keypoints,
 	clusters_context_t *cctx
 ) {
@@ -63,7 +63,7 @@ static errno_t expand_cluster(
 	}
 
 	// Check on Core Point: if there are not enough neighbors, it's noise
-	if (seeds->size < min_points) {
+	if (seeds->size < min_cluster_size) {
 		cctx->ids[index] = DBSCAN_POINT_NOISE;
 		vector_destroy(seeds);
 		return OK;
@@ -95,13 +95,13 @@ static errno_t expand_cluster(
 		}
 
 		// If the current point is also dense (Core Point), we expand the cluster
-		if (neighbors->size >= min_points) {
+		if (neighbors->size >= min_cluster_size) {
 			for (size_t j = 0; j < neighbors->size; j++) {
 				size_t n_index = *(size_t *)vector_get(neighbors, j);
 
 				// If the point has not been considered at all
 				if (cctx->ids[n_index] == DBSCAN_CLUSTER_POINT_UNCLASSIFIED) {
-					// Маркуємо її як "в черзі", щоб інші сусіди не додали її повторно
+					// mark it as "in the queue" so that other neighbors do not add it again
 					cctx->ids[n_index] = cctx->unique_count; 
 					vector_push_back(seeds, &n_index);
 				} 
@@ -133,7 +133,7 @@ static errno_t calculate_and_filter_cluster_centers(
 	clusters_context_t *cctx,
 	const vector_t *keypoints,
 	const vision_conf_t *vconf,
-	bool is_test
+	const uint8_t dbg_lvl
 ) {
 	if (!keypoints || !cctx || cctx->unique_count == 0 || !cctx->ids || !cctx->centers) {
 		return EINVAL;
@@ -180,7 +180,7 @@ static errno_t calculate_and_filter_cluster_centers(
 		uint16_t cluster_w = stats[g].max_x - stats[g].min_x + 1;
 		uint16_t cluster_h = stats[g].max_y - stats[g].min_y + 1;
 
-		// --- filtering clouds criteria ---
+		// --- filtering clouds criterias ---
 		
 		// size > 40%
 		bool is_too_large = (cluster_w > (vconf->frame_size.x  * 4 / 10)) || 
@@ -191,7 +191,7 @@ static errno_t calculate_and_filter_cluster_centers(
 		                        (cluster_h * 2 > cluster_w * 7);
 
 		if (vconf->dbscan_enable_geometry_filtering && (is_too_large || is_too_eccentric)) {
-			if (is_test)
+			if (dbg_lvl >= 2)
 				ddlogw(TAG, "cluster %d filtered out (W:%d, H:%d)%s%s.", g, cluster_w, cluster_h,
 					is_too_large ? " too_large" : "", is_too_eccentric ? " too_eccentric" : "");
 		} else {
@@ -201,7 +201,7 @@ static errno_t calculate_and_filter_cluster_centers(
 			
 			vector_push_back(cctx->centers, &valid_center);
 			
-			if (is_test)
+			if (dbg_lvl >= 2)
 				ddlogi(TAG, "cluster %d center calculated: x=%d, y=%d", g, valid_center.x, valid_center.y);
 		}
 	}
@@ -214,7 +214,7 @@ static errno_t calculate_and_filter_cluster_centers(
 static clusters_context_t dbscan_core(
 	const vector_t *keypoints,
 	vision_conf_t *vconf,
-	bool is_test,
+	const uint8_t dbg_lvl,
 	bool allow_merge
 ) {
 	if (!keypoints || !vconf) {
@@ -224,7 +224,6 @@ static clusters_context_t dbscan_core(
 
 	clusters_context_t cctx = {
 		.ids = calloc(keypoints->size, sizeof(uint16_t)),
-		.size = keypoints->size,
 		.unique_count = 0,
 		.centers = NULL
 	};
@@ -253,11 +252,11 @@ static clusters_context_t dbscan_core(
 		return cctx;
 	}
 
-	calculate_and_filter_cluster_centers(&cctx, keypoints, vconf, is_test);
+	calculate_and_filter_cluster_centers(&cctx, keypoints, vconf, dbg_lvl);
 
 	// --- SECONDARY DBSCAN: MERGE CLOUDS OF CENTERS ---
 	if (allow_merge && cctx.centers->size > DBSCAN_MAX_CENTERS_COUNT_BEFORE_RECURSION) {
-		if (is_test) {
+		if (dbg_lvl) {
 			ddlogw(TAG, "too many centers (%zu). Running secondary DBSCAN to merge them...", cctx.centers->size);
 		}
 
@@ -271,7 +270,7 @@ static clusters_context_t dbscan_core(
 		vconf->dbscan_max_distance_img_diagonal_percent = orig_dist_percent * 2;
 
 		// Call core recursively on the centers vector. allow_merge = false prevents infinite recursion
-		clusters_context_t merged_cctx = dbscan_core(cctx.centers, vconf, is_test, false);
+		clusters_context_t merged_cctx = dbscan_core(cctx.centers, vconf, dbg_lvl, false);
 
 		// Restore original config
 		vconf->dbscan_min_cluster_size = orig_min_cluster;
@@ -290,7 +289,7 @@ static clusters_context_t dbscan_core(
 clusters_context_t dbscan(
 	const vector_t *keypoints,
 	vision_conf_t *vconf,
-	bool is_test
+	const uint8_t dbg_lvl
 ) {
-	return dbscan_core(keypoints, vconf, is_test, true);
+	return dbscan_core(keypoints, vconf, dbg_lvl, true);
 }

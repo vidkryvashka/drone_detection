@@ -223,7 +223,7 @@ static void detect_anomalous_track(tracker_context_t *tracker) {
 errno_t update_tracker(
 	tracker_context_t *tracker,
 	const vector_t *new_centers,
-	const bool is_test
+	const uint8_t dbg_lvl
 ) {
 	if (!tracker || !tracker->active_tracks)
 		return EINVAL;
@@ -239,7 +239,7 @@ errno_t update_tracker(
 	handle_missing_tracks(tracker, initial_tracks_count, track_updated);
 	detect_anomalous_track(tracker);
 
-	if (is_test)
+	if (dbg_lvl)
 		printf(" got tracks ntid %d ", tracker->next_track_id);
 
 	free(track_updated);
