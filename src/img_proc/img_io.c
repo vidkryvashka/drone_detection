@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <dirent.h>
+#include <assert.h>
 #include "defs.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -236,7 +237,7 @@ errno_t images_to_video(
 
 	char cmd[STR_MAX_LEN * 3 + 1];
 	int written = snprintf(cmd, sizeof(cmd), 
-		"ffmpeg -framerate 24 -i \"%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p %s -y", 
+		"ffmpeg -framerate 24 -i \"%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p %s -y -loglevel panic",
 		output_img_dir, output_video_path);
 
 	if (written < 0 || (size_t)written >= sizeof(cmd)) {
@@ -250,6 +251,66 @@ errno_t images_to_video(
 	}
 
 	return OK;
+}
+
+
+pixel_coord_t get_label_drone_coord(
+	const img_io_conf_t *iio_conf
+) {
+	pixel_coord_t coord = {.x = 0, .y = 0};
+
+	if (!iio_conf || !iio_conf->input_filepath[0]) {
+		return coord;
+	}
+
+	const char *last_slash = strrchr(iio_conf->input_filepath, '/');
+	const char *pure_filename = (last_slash != NULL) ? (last_slash + 1) : iio_conf->input_filepath;
+
+	int frame_num = 0;
+	if (sscanf(pure_filename, "%d", &frame_num) != 1) {
+		return coord;
+	}
+
+	char json_filepath[STR_MAX_LEN];
+	snprintf(json_filepath, sizeof(json_filepath), "%s/labels/%d.json", iio_conf->input_img_dir, frame_num);
+
+	FILE *file = fopen(json_filepath, "r");
+	if (!file) {
+		return coord; 
+	}
+
+	char buffer[4096];
+	size_t bytes_read = fread(buffer, 1, sizeof(buffer) - 1, file);
+	buffer[bytes_read] = '\0';
+	fclose(file);
+
+	if (!strstr(buffer, "\"title\": \"Drone\"") && !strstr(buffer, "\"title\":\"Drone\"")) {
+		return coord;
+	}
+
+	char *x_ptr = strstr(buffer, "\"x\"");
+	char *y_ptr = strstr(buffer, "\"y\"");
+	char *w_ptr = strstr(buffer, "\"width\"");
+	char *h_ptr = strstr(buffer, "\"height\"");
+
+	if (x_ptr && y_ptr && w_ptr && h_ptr) {
+		float x_val = 0.0f;
+		float y_val = 0.0f;
+		float w_val = 0.0f;
+		float h_val = 0.0f;
+
+		if (sscanf(x_ptr, "\"x\" : %f", &x_val) != 1) sscanf(x_ptr, "\"x\":%f", &x_val);
+		if (sscanf(y_ptr, "\"y\" : %f", &y_val) != 1) sscanf(y_ptr, "\"y\":%f", &y_val);
+		if (sscanf(w_ptr, "\"width\" : %f", &w_val) != 1) sscanf(w_ptr, "\"width\":%f", &w_val);
+		if (sscanf(h_ptr, "\"height\" : %f", &h_val) != 1) sscanf(h_ptr, "\"height\":%f", &h_val);
+
+		coord = (pixel_coord_t){
+			.x = (int16_t)(x_val + (w_val / 2.0f)),
+			.y = (int16_t)(y_val + (h_val / 2.0f))
+		};
+	}
+
+	return coord;
 }
 
 
@@ -451,7 +512,9 @@ errno_t locate_tracks_on_img(
 	const void *tracker_ctx_vp,
 	uint16_t track_deviation_squared_threshold
 ) {
-	assert(img && tracker_ctx_vp);
+	assert(img);
+	if (!tracker_ctx_vp)
+		return EINVAL;
 	tracker_context_t *tracker_ctx = (tracker_context_t*)tracker_ctx_vp;
 	if (!tracker_ctx->active_tracks)
 		return EINVAL;

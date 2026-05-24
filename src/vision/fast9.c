@@ -5,6 +5,7 @@
 #include "defs.h"
 #include "my_vector.h"
 #include "vision.h"
+#include <assert.h>
 
 #define TAG "fast9 "
 
@@ -5951,6 +5952,7 @@ vector_t* fast9(
 	const uint8_t threshold,
 	const uint8_t dbg_lvl
 ) {
+	assert(gray_img);
 	if (gray_img->channel != GRAY) {
 		ddloge(TAG, "accepts only GRAY channel image");
 		return NULL;

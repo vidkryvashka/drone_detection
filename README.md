@@ -11,6 +11,7 @@ bear -- make # helps to setup clang lints
 -i --input                              path to image file or directory containing images path, default in Makefile
 -i --output_dir                         path to folder for frames output. video goes to default "output" folder
 -d --dim_coef                           0 - 16 value, 0 is black img output, points only, default 2
+   --output_video                       path to video saving location, default output/dildo.mp4
 
    --fast9_threshold                    default 40
 
@@ -30,13 +31,13 @@ examples:
 $ ./bin -i expl.jpg --fast9_threshold 70
 $ ./bin expl.png
 
-$ ./bin -i $INPUT -o $INTERMEDIATE_OUTPUT_DIR	\
-	--fast9_threshold 40												\
-	--dbscan_max_distance 4											\
-	--dbscan_min_cluster_size 3									\
-	--dbscan_min_clusters_count_merge 16				\
-	--track_max_distance 50											\
-	--track_max_missed 5												\
+$ ./bin -i $INPUT -o $INTERMEDIATE_OUTPUT_DIR \
+	--fast9_threshold 40                        \
+	--dbscan_max_distance 4                     \
+	--dbscan_min_cluster_size 3                 \
+	--dbscan_min_clusters_count_merge 16        \
+	--track_max_distance 50                     \
+	--track_max_missed 5                        \
 	--track_deviation_squared_threshold 15
 	# -- dbscan_enable_geometric_filtering
 ```

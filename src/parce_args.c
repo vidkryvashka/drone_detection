@@ -1,10 +1,12 @@
 #include <getopt.h>
 #include <iso646.h>
 #include <stdint.h>
-#include <sys/errno.h>
+#include <stdio.h>
+#include <sys/_types/_errno_t.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <unistd.h>
+#include <assert.h>
 
 #include "defs.h"
 #include "img_io.h"
@@ -20,7 +22,7 @@ version %s\n\
 -i --input                              path to image file or directory containing images path, default in Makefile\n\
 -i --output_dir                         path to folder for frames output. video goes to default \"output\" folder\n\
 -d --dim_coef                           0 - %d value, 0 is black img output, points only, default %d\n\
-   --output_video                       path to video save location, default %s\n\
+   --output_video                       path to video saving location, default %s\n\
 \n\
    --fast9_threshold                    default %d\n\
 \n\
@@ -29,7 +31,7 @@ version %s\n\
    --dbscan_min_clusters_count_merge	min cluster count to recursively merge some of them reducing count, dafault %d\n\
    --dbscan_enable_geometric_filtering  no arg. may be excessive for optical flow calculate, default %s\n\
    \n\
-   --track_max_distance                 the maximum distance in pixels that an object can move in 1 frame, default %d\n\
+   --track_max_distance                 max 2D distance in pixels that an object can move in 1 frame, default %d\n\
    --track_max_missed                   how many frames to wait before deleting a lost track, default %d\n\
    --track_deviation_squared_threshold  to find point with too deviative trajectory, default %d\n\
 \n\
@@ -263,28 +265,14 @@ track_deviation_squared_threshold %d",\
 }
 
 
-errno_t parse_conf(
-	int argc, char **argv,
-	main_conf_t *conf
+static errno_t apply_opts(
+	main_conf_t *conf,
+	int argc, char **argv
 ) {
-	if (argc < 2) {
-		print_help();
-		return EINVAL;
-	}
-
-	init_default_conf(conf);
-	img_io_conf_t *iio_conf = conf->img_io_conf;
-	vision_conf_t *vconf = conf->vision_conf;
-
-	if (argc > 1 && argv[1][0] != '-') {
-		snprintf(iio_conf->input_filepath, sizeof(iio_conf->input_filepath), "%s", argv[1]);
-		snprintf(iio_conf->output_dir, sizeof(iio_conf->output_dir), "%s", OUTPUT_IMG_DIR_DEFAULT);
-		iio_conf->io_mode = single_img_file;
-		conf->dbg_lvl = 2;
-	}
-
+	assert(conf && argc && argv);
 	int opt, longindex;
 	char shortopts[] = "hi:o:d:";	// leading : Enables silent error reporting. X:: optional close arg -Xarg. no : no arg
+	img_io_conf_t *iio_conf = conf->img_io_conf;
 	while ((opt = getopt_long(
 		argc,
 		argv,
@@ -326,6 +314,32 @@ errno_t parse_conf(
 			ddlogw(TAG, "case default, impossible, mb excessive letter in shortopts[]");
 		}
 	}
+	return OK;
+}
+
+
+errno_t parse_conf(
+	int argc, char **argv,
+	main_conf_t *conf
+) {
+	if (argc < 2) {
+		print_help();
+		return EINVAL;
+	}
+
+	init_default_conf(conf);
+	img_io_conf_t *iio_conf = conf->img_io_conf;
+	vision_conf_t *vconf = conf->vision_conf;
+
+	if (argc > 1 && argv[1][0] != '-') {
+		snprintf(iio_conf->input_filepath, sizeof(iio_conf->input_filepath), "%s", argv[1]);
+		snprintf(iio_conf->output_dir, sizeof(iio_conf->output_dir), "%s", OUTPUT_IMG_DIR_DEFAULT);
+		iio_conf->io_mode = single_img_file;
+		conf->dbg_lvl = 2;
+	}
+
+	if (apply_opts(conf, argc, argv))
+		return EINVAL;
 
 	if (conf->dbg_lvl >= 2)
 		print_vconf(vconf);

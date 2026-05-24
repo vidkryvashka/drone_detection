@@ -6,11 +6,10 @@ OBJ_DIR = obj
 BIN_DIR = bin
 TARGET = $(BIN_DIR)/program
 TEST_IMG_PATH = assets/mavic_in_bush.jpg
-OUTPUT_IMG_DIR_DEFAULT = output
 
 CFLAGS_W = -Wall -Wno-unused-variable -Wno-unused-function -Wno-pointer-arith
 CFLAGS_I = -Iinclude
-CFLAGS = $(CFLAGS_W) $(CFLAGS_I) -DOUTPUT_IMG_DIR_DEFAULT=\"$(OUTPUT_IMG_DIR_DEFAULT)\" -O2
+CFLAGS = $(CFLAGS_W) $(CFLAGS_I) -O2
 
 # platform dependent
 LDFLAGS  = -lm -lpthread -ldl
@@ -24,7 +23,6 @@ all: prepare $(TARGET)
 prepare:
 	@mkdir -p $(BIN_DIR)
 	@mkdir -p $(OBJ_SUBDIRS)
-	@mkdir -p $(OUTPUT_IMG_DIR_DEFAULT)
 
 $(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
 	@mkdir -p $(dir $@)
@@ -39,7 +37,7 @@ run: $(TARGET)
 	./$(TARGET)
 
 test: $(TARGET)
-	./$(TARGET) $(TEST_IMG_PATH) -o $(OUTPUT_IMG_DIR_DEFAULT)
+	./$(TARGET) $(TEST_IMG_PATH)
 
 clean:
 	rm -f $(OBJS)

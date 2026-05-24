@@ -1,9 +1,10 @@
-#ifndef IMG_DEFS_H
-#define IMG_DEFS_H
+#ifndef VISION_H
+#define VISION_H
+
+#include <stdint.h>
 
 #include "defs.h"
 #include "my_vector.h"
-#include <stdint.h>
 
 typedef struct {
 	uint16_t max_distance_img_diagonal_percent;
@@ -13,8 +14,8 @@ typedef struct {
 } dbscan_conf_t;
 
 typedef struct {
-	uint16_t max_distance;
-	uint16_t max_missed;
+	uint16_t max_distance;					// maximum 2D distance in pixels that an object can move in 1 frame
+	uint16_t max_missed;					// how many frames to wait before deleting a lost track
 	uint16_t deviation_squared_threshold;
 } track_conf_t;
 
@@ -27,17 +28,17 @@ typedef struct {
 
 #define FAST9_DEFAULT_THRESHOLD 40
 
-#define DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT_DEFAULT	4			// max 2D distance between points to attribute the point to the cluster
+#define DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT_DEFAULT	3			// max 2D distance between points to attribute the point to the cluster
 #define DBSCAN_MIN_CLUSTER_SIZE_DEFAULT						3			// min points number in cluster
-#define DBSCAN_MIN_CLUSTERS_COUNT_MERGE_DEFAULT				16			// Trigger threshold for secondary DBSCAN
+#define DBSCAN_MIN_CLUSTERS_COUNT_MERGE_DEFAULT				24			// Trigger threshold for secondary DBSCAN
 #define DBSCAN_ENABLE_GEOM_FILTERING_DEFAULT				false
 #define DBSCAN_CLUSTER_POINT_UNCLASSIFIED					UINT16_MAX
 #define DBSCAN_POINT_NOISE									UINT16_MAX - 1
 #define DBSCAN_CLUSTER_MAX_UNIQUE_COUNT						UINT16_MAX - 2
 
-#define TRACK_MAX_DISTANCE_DEFAULT							50
+#define TRACK_MAX_DISTANCE_DEFAULT							30
 #define TRACK_MAX_MISSED_DEFAULT							5
-#define TRACK_DEVIATION_THRESHOLD_SQUARED_DEFAULT			25
+#define TRACK_DEVIATION_THRESHOLD_SQUARED_DEFAULT			8
 
 /**
  * @brief Keypoints search algorithm, took from habr and modified types
@@ -81,14 +82,13 @@ typedef struct {
 typedef struct {
 	vector_t *active_tracks;
 	uint16_t next_track_id;		// counter for issuing new IDs
-	uint16_t max_distance;		// the maximum distance in pixels that an object can move in 1 frame
-	uint16_t max_missed;		// how many frames to wait before deleting a lost track
 } tracker_context_t;
 
 
-errno_t update_tracker(
+pixel_coord_t update_tracker(
 	tracker_context_t *tracker,
 	const vector_t *new_centers,
+		const vision_conf_t *vconf,
 	const uint8_t dbg_lvl
 );
 

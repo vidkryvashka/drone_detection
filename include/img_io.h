@@ -4,6 +4,7 @@
 #include "defs.h"
 #include "my_vector.h"
 
+#define OUTPUT_IMG_DIR_DEFAULT "output"
 #define DIM_COEF_DEFAULT 2
 #define MAX_DIM_COEF 16
 #define OUTPUT_VIDEO_PATH_DEFAULT "output/dildo.mp4"
@@ -60,6 +61,10 @@ errno_t image_gray_to_rgb(
 errno_t images_to_video(
 	const char *output_img_dir,
 	const char *output_video_path
+);
+
+pixel_coord_t get_label_drone_coord(
+	const img_io_conf_t *iio_conf
 );
 
 

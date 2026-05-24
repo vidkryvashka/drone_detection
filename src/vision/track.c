@@ -1,6 +1,8 @@
 #include <assert.h>
 #include <stdint.h>
 #include <math.h>
+#include <assert.h>
+
 #include "defs.h"
 #include "vision.h"
 
@@ -11,10 +13,11 @@ static int find_best_track(
 	const tracker_context_t *tracker,
 	const pixel_coord_t *center,
 	const size_t tracks_count,
-	const bool *track_updated
+	const bool *track_updated,
+	const uint16_t max_distance
 ) {
 	int best_track_idx = -1;
-	uint32_t min_dist_sq = tracker->max_distance * tracker->max_distance;
+	uint32_t min_dist_sq = max_distance * max_distance;
 
 	// Look for nearest track
 	for (size_t j = 0; j < tracks_count; j++) {
@@ -43,6 +46,7 @@ static void match_new_centers(
 	tracker_context_t *tracker,
 	const vector_t *new_centers,
 	const size_t initial_tracks_count,
+	const uint16_t max_distance,
 	bool *track_updated
 ) {
 	assert(new_centers);
@@ -51,7 +55,7 @@ static void match_new_centers(
 		pixel_coord_t *center = (pixel_coord_t *)vector_get(new_centers, i);
 		if (!center) continue;
 
-		int best_track_idx = find_best_track(tracker, center, initial_tracks_count, track_updated);
+		int best_track_idx = find_best_track(tracker, center, initial_tracks_count, track_updated, max_distance);
 
 		// If a suitable track is found - we update it
 		if (best_track_idx != -1) {
@@ -89,7 +93,8 @@ static void match_new_centers(
 static void handle_missing_tracks(
 	tracker_context_t *tracker,
 	const size_t initial_tracks_count,
-	const bool *track_updated
+	const bool *track_updated,
+	uint16_t max_missed
 ) {
 	for (int j = (int)initial_tracks_count - 1; j >= 0; j--) {
 		if (track_updated[j]) continue;
@@ -98,7 +103,7 @@ static void handle_missing_tracks(
 		trk->missed_frames++;
 
 		// If the object is lost for a long time, we delete the track
-		if (trk->missed_frames > tracker->max_missed) {
+		if (trk->missed_frames > max_missed) {
 			vector_erase(tracker->active_tracks, j); 
 		} else {
 			// Optional: continue to move the lost object by inertia
@@ -157,7 +162,10 @@ static void detect_anomalous_track_old(
 }
 
 
-static void detect_anomalous_track(tracker_context_t *tracker) {
+static void detect_anomalous_track(
+	tracker_context_t *tracker,
+	pixel_coord_t *aim
+) {
 	if (!tracker || !tracker->active_tracks || tracker->active_tracks->size == 0) 
 		return;
 
@@ -168,7 +176,7 @@ static void detect_anomalous_track(tracker_context_t *tracker) {
 	for (size_t i = 0; i < tracker->active_tracks->size; i++) {
 		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
 		trk->is_most_deviated = false;
-		if (trk->age > 2 && trk->missed_frames == 0) { // age > 2 for prev_d_
+		if (trk->age > 2 && trk->missed_frames == 0) { // age > 2 for prev_d<x|y>
 			sum_dx += trk->dx;
 			sum_dy += trk->dy;
 			valid_tracks_count++;
@@ -229,31 +237,37 @@ static void detect_anomalous_track(tracker_context_t *tracker) {
 	if (target_idx != -1) {
 		track_t *trk = (track_t *)vector_get(tracker->active_tracks, target_idx);
 		trk->is_most_deviated = true;
+		*aim = (pixel_coord_t){
+			.x = trk->current.x,
+			.y = trk->current.y
+		};
 	}
 }
 
-errno_t update_tracker(
+pixel_coord_t update_tracker(
 	tracker_context_t *tracker,
 	const vector_t *new_centers,
+	const vision_conf_t *vconf,
 	const uint8_t dbg_lvl
 ) {
+	pixel_coord_t aim = {0, 0};
 	if (!tracker || !tracker->active_tracks)
-		return EINVAL;
+		return aim;
 
 	size_t initial_tracks_count = tracker->active_tracks->size;
 
 	// An array to indicate whether the track received an update in this frame
 	bool *track_updated = (bool *)calloc(initial_tracks_count, sizeof(bool));
 	if (initial_tracks_count > 0 && !track_updated)
-		return ENOMEM;
+		return aim;
 
-	match_new_centers(tracker, new_centers, initial_tracks_count, track_updated);
-	handle_missing_tracks(tracker, initial_tracks_count, track_updated);
-	detect_anomalous_track(tracker);
+	match_new_centers(tracker, new_centers, initial_tracks_count, vconf->track_conf.max_distance, track_updated);
+	handle_missing_tracks(tracker, initial_tracks_count, track_updated, vconf->track_conf.max_missed);
+	detect_anomalous_track(tracker, &aim);
 
 	if (dbg_lvl)
-		printf(" got tracks ntid %d ", tracker->next_track_id);
+		printf(" got tracks ntid %d, aim: x %d y %d", tracker->next_track_id, aim.x, aim.y);
 
 	free(track_updated);
-	return OK;
+	return aim;
 }
