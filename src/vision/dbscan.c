@@ -190,7 +190,7 @@ static errno_t calculate_and_filter_cluster_centers(
 		bool is_too_eccentric = (cluster_w * 2 > cluster_h * 7) || 
 		                        (cluster_h * 2 > cluster_w * 7);
 
-		if (vconf->dbscan_enable_geometry_filtering && (is_too_large || is_too_eccentric)) {
+		if (vconf->dbscan_conf.enable_geometric_filtering && (is_too_large || is_too_eccentric)) {
 			if (dbg_lvl >= 2)
 				ddlogw(TAG, "cluster %d filtered out (W:%d, H:%d)%s%s.", g, cluster_w, cluster_h,
 					is_too_large ? " too_large" : "", is_too_eccentric ? " too_eccentric" : "");
@@ -217,10 +217,8 @@ static clusters_context_t dbscan_core(
 	const uint8_t dbg_lvl,
 	bool allow_merge
 ) {
-	if (!keypoints || !vconf) {
-		ddloge(TAG, "invalid arg");
-		return (clusters_context_t){0};
-	}
+	assert(keypoints && vconf);
+	dbscan_conf_t dconf = vconf->dbscan_conf;
 
 	clusters_context_t cctx = {
 		.ids = calloc(keypoints->size, sizeof(uint16_t)),
@@ -233,14 +231,14 @@ static clusters_context_t dbscan_core(
 
 	uint16_t max_distance = sqrt(
 		vconf->frame_size.x * vconf->frame_size.x + vconf->frame_size.y * vconf->frame_size.y
-	) / 100 * vconf->dbscan_max_distance_img_diagonal_percent;
+	) / 100 * dconf.max_distance_img_diagonal_percent;
 
 	for (size_t i = 0; i < keypoints->size; i++)
 		cctx.ids[i] = DBSCAN_CLUSTER_POINT_UNCLASSIFIED;
 
 	for (size_t i = 0; i < keypoints->size; i++)
 		if (cctx.ids[i] == DBSCAN_CLUSTER_POINT_UNCLASSIFIED)
-			if (expand_cluster(i, max_distance, vconf->dbscan_min_cluster_size, keypoints, &cctx) == OK)
+			if (expand_cluster(i, max_distance, dconf.min_cluster_size, keypoints, &cctx) == OK)
 				cctx.unique_count++;
 
 	if (cctx.unique_count == 0)
@@ -255,27 +253,27 @@ static clusters_context_t dbscan_core(
 	calculate_and_filter_cluster_centers(&cctx, keypoints, vconf, dbg_lvl);
 
 	// --- SECONDARY DBSCAN: MERGE CLOUDS OF CENTERS ---
-	if (allow_merge && cctx.centers->size > DBSCAN_MAX_CENTERS_COUNT_BEFORE_RECURSION) {
+	if (allow_merge && cctx.centers->size > DBSCAN_MIN_CLUSTERS_COUNT_MERGE_DEFAULT) {
 		if (dbg_lvl) {
 			ddlogw(TAG, "too many centers (%zu). Running secondary DBSCAN to merge them...", cctx.centers->size);
 		}
 
 		// Backup vconf fields to temporarily override them for centers merging
-		uint16_t orig_min_cluster = vconf->dbscan_min_cluster_size;
-		bool orig_geom_filter = vconf->dbscan_enable_geometry_filtering;
-		uint16_t orig_dist_percent = vconf->dbscan_max_distance_img_diagonal_percent;
+		uint16_t orig_min_cluster = dconf.min_cluster_size;
+		bool orig_geom_filter = dconf.enable_geometric_filtering;
+		uint16_t orig_dist_percent = dconf.max_distance_img_diagonal_percent;
 
-		vconf->dbscan_min_cluster_size = 1;
-		vconf->dbscan_enable_geometry_filtering = false;
-		vconf->dbscan_max_distance_img_diagonal_percent = orig_dist_percent * 2;
+		dconf.min_cluster_size = 1;
+		dconf.enable_geometric_filtering = false;
+		dconf.max_distance_img_diagonal_percent = orig_dist_percent * 2;
 
 		// Call core recursively on the centers vector. allow_merge = false prevents infinite recursion
 		clusters_context_t merged_cctx = dbscan_core(cctx.centers, vconf, dbg_lvl, false);
 
 		// Restore original config
-		vconf->dbscan_min_cluster_size = orig_min_cluster;
-		vconf->dbscan_enable_geometry_filtering = orig_geom_filter;
-		vconf->dbscan_max_distance_img_diagonal_percent = orig_dist_percent;
+		dconf.min_cluster_size = orig_min_cluster;
+		dconf.enable_geometric_filtering = orig_geom_filter;
+		dconf.max_distance_img_diagonal_percent = orig_dist_percent;
 
 		vector_destroy(cctx.centers);
 		cctx.centers = merged_cctx.centers;
@@ -291,5 +289,5 @@ clusters_context_t dbscan(
 	vision_conf_t *vconf,
 	const uint8_t dbg_lvl
 ) {
-	return dbscan_core(keypoints, vconf, dbg_lvl, true);
+	return dbscan_core(keypoints, vconf, dbg_lvl, vconf->dbscan_conf.min_clusters_count_merge);
 }

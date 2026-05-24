@@ -9,12 +9,13 @@ vector_t* vector_create(
 	size_t sizeof_element
 ) {
 	vector_t* vec = (vector_t *)malloc(sizeof(vector_t));
-	if (!vec) {
-		ddloge(TAG, "couldn't malloc vector");
-		return NULL;
-	}
+	if (!vec) return NULL;
 
 	vec->data = calloc(size, sizeof_element);
+	if (size > 0 && !vec->data) {
+        free(vec);
+        return NULL;
+    }
 	vec->size = 0;
 	vec->capacity = size;
 	vec->sizeof_element = sizeof_element;
@@ -27,10 +28,7 @@ errno_t vector_reserve(
 	vector_t *vec,
 	const size_t new_capacity
 ) {
-	if (!vec) {
-		ddloge(TAG, "!vec");
-		return EINVAL;
-	}
+	assert(vec);
 
 	if (new_capacity <= vec->capacity)
 		return OK;
@@ -38,7 +36,7 @@ errno_t vector_reserve(
 	void *realloced_data = realloc(vec->data, new_capacity * vec->sizeof_element);
 	if (!realloced_data) {
 		ddloge(TAG, "realloc(...) lost data");
-		return ENOSPC;
+		return ENOMEM;
 	}
 
 	vec->data = realloced_data;
@@ -52,13 +50,11 @@ errno_t vector_push_back(
 	vector_t *vec,
 	const void *element
 ) {
-	if (!vec || !element) {
-		ddloge(TAG, "invalid args");
-		return EINVAL;
-	}
+	assert(vec);
+	assert(element);
 
 	if (vec->size >= vec->capacity) {
-		size_t new_capacity = (vec->capacity == 0) ? VECTOR_DEFAULT_INIT_CAPACITY : vec->capacity * (vec->capacity * 3) / 2;
+		size_t new_capacity = (vec->capacity == 0) ? VECTOR_DEFAULT_INIT_CAPACITY : vec->capacity << 1;
 		if (vector_reserve(vec, new_capacity))
 			return ENOMEM;
 	}
@@ -76,17 +72,13 @@ errno_t vector_set(
 	const size_t index,
 	void *val
 ) {
+	assert(vec && val);
 	if (index >= vec->capacity)
-		vector_reserve(vec, index + 2);
+		if (vector_resize(vec, index + 1))
+			return ENOMEM;
 
 	void *dest = (char*)vec->data + index * vec->sizeof_element;
-	if (!memcpy(dest, val, vec->sizeof_element)) {
-		ddloge(TAG, "failed to set element in vec, sizeof_element %ld", vec->sizeof_element);
-		return ENOSPC;
-	}
-	if (index >= vec->size)
-		vec->size = index + 1;
-
+	memcpy(dest, val, vec->sizeof_element);
 	return OK;
 }
 
@@ -95,11 +87,7 @@ errno_t vector_erase(
 	vector_t *vec,
 	const size_t index
 ) {
-	if (!vec) {
-		ddloge(TAG, "invalid args");
-		return EINVAL;
-	}
-
+	assert(vec);
 	if (index >= vec->size) {
 		ddloge(TAG, "index %zu out of bounds (size %zu)", index, vec->size);
 		return EINVAL;
@@ -115,49 +103,16 @@ errno_t vector_erase(
 
 	vec->size--;
 	void *freed_tail = (char*)vec->data + vec->size * vec->sizeof_element;
-	memset(freed_tail, 0, vec->sizeof_element);
+	// memset(freed_tail, 0, vec->sizeof_element); // may be excessive, next vector_push_back will write sth over it
 
 	return OK;
-}
-
-
-errno_t vector_clear(
-	vector_t *vec
-) {
-	if (vec) {
-		free(vec->data);
-		vec->data = NULL;
-		vec->size = 0;
-		vec->capacity = 0;
-		return OK;
-	} else {
-		ddloge(TAG, "no vec");
-		return EINVAL;
-	}
-}
-
-
-errno_t vector_destroy(
-	vector_t *vec
-) {
-	if (vec) {
-		free(vec->data);
-		free(vec);
-		return OK;
-	} else {
-		ddloge(TAG, "no vec");
-		return EINVAL;
-	}
 }
 
 
 errno_t vector_resize(
 	vector_t *vec, size_t new_size
 ) {
-	if (!vec) {
-		ddloge(TAG, "no vec!");
-		return EINVAL;
-	}
+	assert(vec);
 
 	if (new_size > vec->capacity) {
 		vector_reserve(vec, new_size);
@@ -171,4 +126,29 @@ errno_t vector_resize(
 	vec->size = new_size;
 
 	return OK;
+}
+
+
+// errno_t vector_clear(
+// 	vector_t *vec
+// ) {
+// 	assert(vec);
+// 	vector_resize(vec, VECTOR_DEFAULT_INIT_CAPACITY);
+// 	vec->size = 0;
+// 	vec->capacity = VECTOR_DEFAULT_INIT_CAPACITY;
+// 	return OK;
+// }
+
+
+errno_t vector_destroy(
+	vector_t *vec
+) {
+	if (vec) {
+		free(vec->data);
+		free(vec);
+		return OK;
+	} else {
+		ddloge(TAG, "already no vec");
+		return EINVAL;
+	}
 }

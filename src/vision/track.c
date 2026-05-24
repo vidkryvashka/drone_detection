@@ -1,7 +1,10 @@
+#include <assert.h>
 #include <stdint.h>
 #include <math.h>
 #include "defs.h"
 #include "vision.h"
+
+#define TAG "track "
 
 
 static int find_best_track(
@@ -35,13 +38,14 @@ static int find_best_track(
 	return best_track_idx;
 }
 
+
 static void match_new_centers(
 	tracker_context_t *tracker,
 	const vector_t *new_centers,
 	const size_t initial_tracks_count,
 	bool *track_updated
 ) {
-	if (!new_centers) return;
+	assert(new_centers);
 
 	for (size_t i = 0; i < new_centers->size; i++) {
 		pixel_coord_t *center = (pixel_coord_t *)vector_get(new_centers, i);
@@ -73,12 +77,14 @@ static void match_new_centers(
 				.prev_dy = 0,
 				.age = 1,
 				.missed_frames = 0,
-				.abnormality = 0
+				.deviation_squared = 0,
+				.is_most_deviated = 0
 			};
 			vector_push_back(tracker->active_tracks, &new_track);
 		}
 	}
 }
+
 
 static void handle_missing_tracks(
 	tracker_context_t *tracker,
@@ -103,6 +109,7 @@ static void handle_missing_tracks(
 	}
 }
 
+
 static void detect_anomalous_track_old(
 	tracker_context_t *tracker
 ) {
@@ -115,7 +122,7 @@ static void detect_anomalous_track_old(
 	// 1. reset the old marks and calculate the average movement (camera/background movement)
 	for (size_t i = 0; i < tracker->active_tracks->size; i++) {
 		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
-
+		trk->is_most_deviated = false;
 		// We take into account only stable tracks that are currently being updated
 		if (trk->age > 1 && trk->missed_frames == 0) {
 			sum_dx += trk->dx;
@@ -131,9 +138,9 @@ static void detect_anomalous_track_old(
 	int32_t global_dx = sum_dx / (int32_t)valid_tracks_count;
 	int32_t global_dy = sum_dy / (int32_t)valid_tracks_count;
 
-	// 2. look for the track with the largest deviation from the global movement
+	// 2. look for the track with the largest deviation_sq from the global movement
 	uint32_t max_deviation_sq = 0;
-	int max_abnormality_idx = -1;
+	int max_deviation_sq_idx = -1;
 
 	for (size_t i = 0; i < tracker->active_tracks->size; i++) {
 		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
@@ -144,10 +151,11 @@ static void detect_anomalous_track_old(
 			int32_t dy = trk->dy - global_dy;
 			
 			uint32_t deviation_sq = dx * dx + dy * dy;
-			trk->abnormality = sqrt(deviation_sq);
+			trk->deviation_squared = sqrt(deviation_sq);
 		}
 	}
 }
+
 
 static void detect_anomalous_track(tracker_context_t *tracker) {
 	if (!tracker || !tracker->active_tracks || tracker->active_tracks->size == 0) 
@@ -159,65 +167,69 @@ static void detect_anomalous_track(tracker_context_t *tracker) {
 	// 1. find the global motion vector of the background
 	for (size_t i = 0; i < tracker->active_tracks->size; i++) {
 		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
-
-		if (trk->age > 2 && trk->missed_frames == 0) { // age > 2 щоб була prev_velocity
+		trk->is_most_deviated = false;
+		if (trk->age > 2 && trk->missed_frames == 0) { // age > 2 for prev_d_
 			sum_dx += trk->dx;
 			sum_dy += trk->dy;
 			valid_tracks_count++;
 		}
 	}
 
-	if (valid_tracks_count < 3) return;
+	if (valid_tracks_count == 0) return;
 
 	int16_t global_dx = sum_dx / (int16_t)valid_tracks_count;
 	int16_t global_dy = sum_dy / (int16_t)valid_tracks_count;
 
-	// uint32_t max_deviation_sq = 0;
-	// int best_anomaly_idx = -1;
+	uint32_t max_dev_strict = 0;
+	int best_strict_idx = -1;
+
+	uint32_t max_dev_fallback = 0;
+	int best_fallback_idx = -1;
 
 	for (size_t i = 0; i < tracker->active_tracks->size; i++) {
 		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
-		
-		// check only "mature" tracks
-		if (trk->age > 2 && trk->missed_frames == 0) {
+		if (trk->missed_frames == 0) {
+			// --- ANOMALY CALCULATION ---
+			int32_t dx = trk->dx - global_dx;
+			int32_t dy = trk->dy - global_dy;
+			trk->deviation_squared = dx * dx + dy * dy;
+
+			// --- SUBSTITUTE CANDIDATE (Fallback) ---
+			// simply the largest deviation among ALL points, regardless of noise
+			if (trk->deviation_squared >= max_dev_fallback) {
+				max_dev_fallback = trk->deviation_squared;
+				best_fallback_idx = (int)i;
+			}
 			
-			// --- FILTER 1: Scalar product (direction of movement) ---
-			// V_current = (vx, vy), V_prev = (pvx, pvy)
-			// Dot product = vx*pvx + vy*pvy
+			// --- QUALITY CANDIDATE (Strict) ---
+			// d_current = (dx, dy), d_prev = (pdx, pdy)
+			// Dot product = dx*pdx + dy*pdy
 			// If the object moves randomly (Brownian motion), the angle between the vectors is often obtuse or 90°, 
 			// so dot_product will be <= 0. We need steady forward motion.
-			int32_t dot_product = (trk->dx * trk->prev_dx) + 
-								  (trk->dy * trk->prev_dy);
-			
-			if (dot_product <= 0) {
-				continue; // This is chaotic "Brownian" noise, let's skip it
+			if (trk->age > 2) {
+				int32_t dot_prod =	(trk->dx * trk->prev_dx) +
+									(trk->dy * trk->prev_dy);
+				// uint32_t speed_sq = trk->dx * trk->dx +
+				// 					trk->dy * trk->dy;
+				
+				// Only if the movement is consistent // and fast enough
+				if (dot_prod > 0 /* && speed_sq >= 9 */) {
+					if (trk->deviation_squared >= max_dev_strict) {
+						max_dev_strict = trk->deviation_squared;
+						best_strict_idx = (int)i;
+					}
+				}
 			}
-
-			// --- FILTER 2: Minimum amplitude of natural velocity ---
-			// To filter out small jitter by 1-2 pixels
-			uint32_t speed_sq = trk->dx * trk->dx + trk->dy * trk->dy;
-			if (speed_sq < 9) { // For example, a rate of less than 3 pixels/frame is noise
-				continue;
-			}
-
-			// --- ANOMALY CALCULATION ---
-			int16_t dx = trk->dx - global_dx;
-			int16_t dy = trk->dy - global_dy;
-			
-			uint32_t deviation_sq = dx * dx + dy * dy;
-			trk->abnormality = sqrt(deviation_sq);
-			//if (deviation_sq > max_deviation_sq) {
-			//	max_deviation_sq = deviation_sq;
-			//	best_anomaly_idx = (int)i;
-			//}
 		}
 	}
 
-	//uint32_t anomaly_threshold_sq = 25; // 5 pixels diff with background
-	//if (best_anomaly_idx != -1 && max_deviation_sq > anomaly_threshold_sq) {
-	//	track_t *trk = (track_t *)vector_get(tracker->active_tracks, best_anomaly_idx);
-	//	trk->abnormality = 10; // crunch to pass > 8 to paint as red target
-	//}
+	// The priority is a high-quality track (strict). If there is no such thing - take at least noise (fallback).
+	int target_idx = (best_strict_idx != -1) ? best_strict_idx : best_fallback_idx;
+
+	if (target_idx != -1) {
+		track_t *trk = (track_t *)vector_get(tracker->active_tracks, target_idx);
+		trk->is_most_deviated = true;
+	}
 }
 
 errno_t update_tracker(

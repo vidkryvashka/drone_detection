@@ -1,3 +1,4 @@
+#include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <dirent.h>
@@ -150,10 +151,7 @@ errno_t image_save_jpg(
 	const image_t* img,
 	const uint8_t dbg_lvl
 ) {
-	if (!img || !img->pixels || !input_filepath || !output_dir) {
-		ddloge(TAG, "invalid arg");
-		return EINVAL;
-	}
+	assert(img && img->pixels && input_filepath && output_dir);
 
 	const char *last_slash = strrchr(input_filepath, '/');
 	const char *pure_filename = (last_slash != NULL) ? (last_slash + 1) : input_filepath;
@@ -183,22 +181,17 @@ errno_t image_save_jpg(
 errno_t image_free(
 	image_t* img
 ) {
-	if (img) {
-		stbi_image_free(img->pixels);
-		free(img);
-		return OK;
-	} else
-		return EINVAL;
+	assert(img);
+	stbi_image_free(img->pixels);
+	free(img);
+	return OK;
 }
 
 
 errno_t image_gray_to_rgb(
 	image_t *img
 ) {
-	if (!img || !img->pixels) {
-		ddloge(TAG, "invalid image for conversion");
-		return EINVAL;
-	}
+	assert(img && img->pixels);
 
 	if (img->channel == RGB || img->channel == RGBA) {
 		return OK; 
@@ -237,17 +230,14 @@ errno_t image_gray_to_rgb(
 
 errno_t images_to_video(
 	const char *output_img_dir,
-	const char *output_dir
+	const char *output_video_path
 ) {
-	if (!output_img_dir || !output_dir) {
-		return EINVAL;
-	}
+	assert(output_img_dir && output_video_path);
 
 	char cmd[STR_MAX_LEN * 3 + 1];
-
 	int written = snprintf(cmd, sizeof(cmd), 
-		"ffmpeg -framerate 24 -i \"%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p \"%s/dildo.mp4\" -y", 
-		output_img_dir, output_dir);
+		"ffmpeg -framerate 24 -i \"%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p %s -y", 
+		output_img_dir, output_video_path);
 
 	if (written < 0 || (size_t)written >= sizeof(cmd)) {
 		ddloge(TAG, "command buffer overflowed");
@@ -269,9 +259,7 @@ errno_t locate_single_point_on_img(
 	const uint32_t color,
 	const uint16_t radius_px
 ) {
-	if (!img || !img->pixels) {
-		return EINVAL;
-	}
+	assert(img && img->pixels);
 
 	int16_t cx = (int16_t)pixel_coord.x;
 	int16_t cy = (int16_t)pixel_coord.y;
@@ -306,10 +294,7 @@ errno_t locate_keypoints_on_img(
 	const vector_t *keypoints,
 	const uint32_t color
 ) {
-	if (!img || !img->pixels || !keypoints) {
-		ddloge(TAG, "invalid args");
-		return EINVAL;
-	}
+	assert(img && img->pixels && keypoints);
 	for (size_t i = 0; i < keypoints->size; i++) {
 		pixel_coord_t* p = vector_get(keypoints, i);
 		if (!p)
@@ -339,18 +324,18 @@ static uint32_t generate_cluster_color(uint16_t cluster_id) {
 
 	// keep this pretty
 	static const uint32_t bright_palette[] = {
-		COLOR_RGB_ENCODE(255, 0, 50),    // 0:  Неоновий Червоний
-		COLOR_RGB_ENCODE(0, 255, 0),     // 1:  Яскравий Лайм (максимальна чутливість ока)
-		COLOR_RGB_ENCODE(100, 180, 255), // 2:  Електрик Синій
-		COLOR_RGB_ENCODE(255, 255, 0),   // 3:  Чистий Жовтий (кислотний)
-		COLOR_RGB_ENCODE(255, 0, 255),   // 4:  Маджента / Фуксія
-		COLOR_RGB_ENCODE(0, 255, 255),   // 5:  Яскравий Ціан / Бірюза
-		COLOR_RGB_ENCODE(255, 140, 0),   // 6:  Вогняний Помаранчевий
-		COLOR_RGB_ENCODE(210, 100, 255), // 7:  Світло-Фіолетовий / Яскравий Бузковий
-		COLOR_RGB_ENCODE(0, 255, 140),   // 8:  Неонова М'ята
-		COLOR_RGB_ENCODE(255, 50, 150),  // 9:  Яскравий Хот-Пінк
-		COLOR_RGB_ENCODE(170, 255, 0),   // 10: Кислотний Шартрез
-		COLOR_RGB_ENCODE(190, 255, 190)  // 11: Світло-салатовий неоновий
+		neon_red,
+		bright_lime,
+		electric_blue,
+		clear_yellow,
+		magenta,
+		bright_cian,
+		flame_orange,
+		light_violet,
+		neon_mint,
+		hot_pink,
+		acid_shatrez,
+		light_green
 	};
 
 	size_t palette_size = sizeof(bright_palette) / sizeof(bright_palette[0]);
@@ -378,12 +363,9 @@ errno_t locate_clusters_on_img(
 	image_t *img,
 	const vector_t *keypoints,
 	const void *cctx_vp,
-	const bool enable_print_clusters
+	const bool enable_locate_clusters
 ) {
-	if (!img || !keypoints || !cctx_vp) {
-		return EINVAL;
-	}
-
+	assert(img && keypoints && cctx_vp);
 	if (img->channel == GRAY && image_gray_to_rgb(img) != OK) {
 		ddloge(TAG, "failed to convert image to RGB");
 		return -1;
@@ -400,11 +382,11 @@ errno_t locate_clusters_on_img(
 		locate_single_point_on_img(img, *point, color, 1);
 	}
 
-	if (enable_print_clusters && cctx->centers)
+	if (enable_locate_clusters && cctx->centers)
 		for (size_t i = 0; i < cctx->centers->size; i++) {
 			pixel_coord_t *center = (pixel_coord_t *)vector_get(cctx->centers, i);
 			if (center)
-				locate_single_point_on_img(img, *center, COLOR_RGB_ENCODE(255, 255, 0), 3);
+				locate_single_point_on_img(img, *center, dim_blue, 3);
 		}
 
 	return OK;
@@ -417,9 +399,7 @@ static errno_t draw_line_on_img(
 	const pixel_coord_t end,
 	const uint32_t color
 ) {
-	if (!img || !img->pixels) {
-		return EINVAL;
-	}
+	assert(img && img->pixels);
 
 	// Brezenham algorithm for a 1-pixel line
 	int16_t x0 = (int16_t)start.x;
@@ -468,25 +448,28 @@ static errno_t draw_line_on_img(
 
 errno_t locate_tracks_on_img(
 	image_t *img,
-	const void *tracker_ctx_vp
+	const void *tracker_ctx_vp,
+	uint16_t track_deviation_squared_threshold
 ) {
+	assert(img && tracker_ctx_vp);
 	tracker_context_t *tracker_ctx = (tracker_context_t*)tracker_ctx_vp;
-	if (!tracker_ctx || !tracker_ctx->active_tracks)
+	if (!tracker_ctx->active_tracks)
 		return EINVAL;
 
-	uint32_t yellow_color = COLOR_RGB_ENCODE(255, 255, 0);
 	for (size_t i = 0; i < tracker_ctx->active_tracks->size; i++) {
 		track_t *trk = (track_t *)vector_get(tracker_ctx->active_tracks, i);
 		if (!trk)
 			continue;
 		if (trk->age > 1 && trk->missed_frames == 0) {
-
-			if (trk->abnormality > 8) {
-				draw_line_on_img(img, trk->previous, trk->current, COLOR_RGB_ENCODE(255, 0, 0));
-				locate_single_point_on_img(img, trk->current, COLOR_RGB_ENCODE(255, 0, 0), 4);
+			if (trk->is_most_deviated) {
+				draw_line_on_img(img, trk->previous, trk->current, red);
+				locate_single_point_on_img(img, trk->current, red, 5);
+			} else if (trk->deviation_squared > track_deviation_squared_threshold) {
+				draw_line_on_img(img, trk->previous, trk->current, dim_magenta);
+				locate_single_point_on_img(img, trk->current, dim_magenta, 4);
 			} else {
-				draw_line_on_img(img, trk->previous, trk->current, COLOR_RGB_ENCODE(255, 255, 0));
-				locate_single_point_on_img(img, trk->current, COLOR_RGB_ENCODE(255, 255, 0), 2);
+				draw_line_on_img(img, trk->previous, trk->current, light_violet);
+				locate_single_point_on_img(img, trk->current, light_violet, 3);
 			}
 		}
 	}

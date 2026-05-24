@@ -33,7 +33,7 @@ static errno_t process_one_image(
 
 	dim_img(img, iio_conf->dim_coef);
 	locate_clusters_on_img(img, kpts, &cctx, true);
-	locate_tracks_on_img(img, tracker_ctx);
+	locate_tracks_on_img(img, tracker_ctx, vconf->track_conf.deviation_squared_threshold);
 	if (image_save_jpg(iio_conf->input_filepath, iio_conf->output_dir, img, conf->dbg_lvl) != OK)
 		ddloge(TAG, "failed to save image");
 
@@ -69,8 +69,8 @@ static errno_t process_img_dir(
 	tracker_context_t tracker_ctx = {
 		.active_tracks = vector_create(10, sizeof(track_t)),
 		.next_track_id = 0,
-		.max_distance = vconf->track_max_distance,
-		.max_missed = vconf->track_max_missed
+		.max_distance = vconf->track_conf.max_distance,
+		.max_missed = vconf->track_conf.max_missed
 	};
 
 	clock_t start = clock();
@@ -85,11 +85,11 @@ static errno_t process_img_dir(
 	double cpu_time_used_ms = ((double)(clock() - start)) / CLOCKS_PER_SEC * 1000;
 	printf(" %.0f ms\n", cpu_time_used_ms);
 
-	images_to_video(iio_conf->output_dir, DEFAULT_OUTPUT_DIR);
+	images_to_video(iio_conf->output_dir, iio_conf->output_video_path);
 
 	vector_destroy(tracker_ctx.active_tracks);
 	vector_destroy(filenames);
-	return OK;	// hope so
+	return OK;
 }
 
 

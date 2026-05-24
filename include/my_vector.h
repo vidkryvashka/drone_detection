@@ -73,7 +73,17 @@ errno_t vector_set(vector_t *vec, size_t index, void *val);
 
 
 /**
- * @brief Erases value by index, aligns the rest of elements
+ * @brief Resize vector to new size
+ * 
+ * @param vec
+ * @param size_t new size
+ * @return errno_t -1: no vec
+ */
+errno_t vector_resize(vector_t *vec, size_t new_size);
+
+
+/**
+ * @brief Erases element by index, aligns the rest of elements
  * 
  * @param vec
  * @param index
@@ -87,7 +97,8 @@ errno_t vector_erase(vector_t *vec, const size_t index);
  * @param vec 
  * @return errno_t -1: no vec
  */
-errno_t vector_clear(vector_t *vec);
+// errno_t vector_clear(vector_t *vec);
+#define vector_clear(vec) vector_resize(vec, 0)
 
 
 /**
@@ -97,15 +108,5 @@ errno_t vector_clear(vector_t *vec);
  * @return errno_t -1: no vec
  */
 errno_t vector_destroy(vector_t *vec);
-
-
-/**
- * @brief Resize vector to new size
- * 
- * @param vec
- * @param size_t new size
- * @return errno_t -1: no vec
- */
-errno_t vector_resize(vector_t *vec, size_t new_size);
 
 #endif

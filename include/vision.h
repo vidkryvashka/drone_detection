@@ -6,27 +6,38 @@
 #include <stdint.h>
 
 typedef struct {
+	uint16_t max_distance_img_diagonal_percent;
+	uint8_t min_cluster_size;
+	uint16_t min_clusters_count_merge;
+	bool enable_geometric_filtering;
+} dbscan_conf_t;
+
+typedef struct {
+	uint16_t max_distance;
+	uint16_t max_missed;
+	uint16_t deviation_squared_threshold;
+} track_conf_t;
+
+typedef struct {
 	pixel_coord_t frame_size;
-	uint16_t dbscan_max_distance_img_diagonal_percent;
-	uint16_t track_max_distance;
-	uint16_t track_max_missed;
-	uint8_t dbscan_min_cluster_size;
-	bool dbscan_enable_geometry_filtering;
 	uint8_t fast9_threshold;
+	dbscan_conf_t dbscan_conf;
+	track_conf_t track_conf;
 } vision_conf_t;
 
 #define FAST9_DEFAULT_THRESHOLD 40
 
-#define DBSCAN_DEFAULT_MAX_DISTANCE_IMG_DIAGONAL_PERCENT	4			// max 2D distance between points to attribute the point to the cluster
-#define DBSCAN_DEFAULT_MIN_CLUSTER_SIZE						3			// min points number in cluster
-#define DBSCAN_DEFAULT_ENABLE_GEOM_FILTERING				false
+#define DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT_DEFAULT	4			// max 2D distance between points to attribute the point to the cluster
+#define DBSCAN_MIN_CLUSTER_SIZE_DEFAULT						3			// min points number in cluster
+#define DBSCAN_MIN_CLUSTERS_COUNT_MERGE_DEFAULT				16			// Trigger threshold for secondary DBSCAN
+#define DBSCAN_ENABLE_GEOM_FILTERING_DEFAULT				false
 #define DBSCAN_CLUSTER_POINT_UNCLASSIFIED					UINT16_MAX
 #define DBSCAN_POINT_NOISE									UINT16_MAX - 1
 #define DBSCAN_CLUSTER_MAX_UNIQUE_COUNT						UINT16_MAX - 2
-#define DBSCAN_MAX_CENTERS_COUNT_BEFORE_RECURSION			16			// Trigger threshold for secondary DBSCAN
 
-#define TRACK_DEFAULT_MAX_DISTANCE 50
-#define TRACK_DEFAULT_MAX_MISSED 5
+#define TRACK_MAX_DISTANCE_DEFAULT							50
+#define TRACK_MAX_MISSED_DEFAULT							5
+#define TRACK_DEVIATION_THRESHOLD_SQUARED_DEFAULT			25
 
 /**
  * @brief Keypoints search algorithm, took from habr and modified types
@@ -62,7 +73,8 @@ typedef struct {
     int16_t prev_dy;
 	uint16_t age;			// How many frames in a row is it visible (confidence)
 	uint16_t missed_frames;	// How many frames isn't it visible (not to delete immediately)
-	uint16_t abnormality;
+	uint16_t deviation_squared;
+	bool is_most_deviated;
 } track_t;
 
 // The tracker context that lives between process_one_image calls
