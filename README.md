@@ -42,6 +42,11 @@ $ ./bin -i $INPUT -o $INTERMEDIATE_OUTPUT_DIR \
 	# -- dbscan_enable_geometric_filtering
 ```
 
+intermediate frame example
+
+![](https://github.com/vidkryvashka/drone_detection/assets/output_frame_example.jpg)
+![](./assets/output_frame_example.jpg)
+
 Folder with images must contain numbered filenames aka 1.jpg, 2.jpg, ...
 
 Then ffmpeg glues video in output folder nearby binary.

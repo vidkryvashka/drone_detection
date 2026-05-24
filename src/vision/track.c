@@ -115,53 +115,6 @@ static void handle_missing_tracks(
 }
 
 
-static void detect_anomalous_track_old(
-	tracker_context_t *tracker
-) {
-	if (!tracker || !tracker->active_tracks || tracker->active_tracks->size == 0) 
-		return;
-
-	int32_t sum_dx = 0, sum_dy = 0;
-	size_t valid_tracks_count = 0;
-
-	// 1. reset the old marks and calculate the average movement (camera/background movement)
-	for (size_t i = 0; i < tracker->active_tracks->size; i++) {
-		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
-		trk->is_most_deviated = false;
-		// We take into account only stable tracks that are currently being updated
-		if (trk->age > 1 && trk->missed_frames == 0) {
-			sum_dx += trk->dx;
-			sum_dy += trk->dy;
-			valid_tracks_count++;
-		}
-	}
-
-	// At least a few points are needed to determine where the "majority" is going
-	if (valid_tracks_count < 3) 
-		return;
-
-	int32_t global_dx = sum_dx / (int32_t)valid_tracks_count;
-	int32_t global_dy = sum_dy / (int32_t)valid_tracks_count;
-
-	// 2. look for the track with the largest deviation_sq from the global movement
-	uint32_t max_deviation_sq = 0;
-	int max_deviation_sq_idx = -1;
-
-	for (size_t i = 0; i < tracker->active_tracks->size; i++) {
-		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
-		if (trk->age > 1 && trk->missed_frames == 0) {
-			
-			// To what extent the velocity vector of the object differs from the global one
-			int32_t dx = trk->dx - global_dx;
-			int32_t dy = trk->dy - global_dy;
-			
-			uint32_t deviation_sq = dx * dx + dy * dy;
-			trk->deviation_squared = sqrt(deviation_sq);
-		}
-	}
-}
-
-
 static void detect_anomalous_track(
 	tracker_context_t *tracker,
 	pixel_coord_t *aim
@@ -175,7 +128,6 @@ static void detect_anomalous_track(
 	// 1. find the global motion vector of the background
 	for (size_t i = 0; i < tracker->active_tracks->size; i++) {
 		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
-		trk->is_most_deviated = false;
 		if (trk->age > 2 && trk->missed_frames == 0) { // age > 2 for prev_d<x|y>
 			sum_dx += trk->dx;
 			sum_dy += trk->dy;
@@ -188,42 +140,57 @@ static void detect_anomalous_track(
 	int16_t global_dx = sum_dx / (int16_t)valid_tracks_count;
 	int16_t global_dy = sum_dy / (int16_t)valid_tracks_count;
 
-	uint32_t max_dev_strict = 0;
+	// Unified scoring system to heavily rely on track maturity (age) and target lock (hysteresis)
+	uint64_t max_score_strict = 0;
 	int best_strict_idx = -1;
 
-	uint32_t max_dev_fallback = 0;
+	uint64_t max_score_fallback = 0;
 	int best_fallback_idx = -1;
 
 	for (size_t i = 0; i < tracker->active_tracks->size; i++) {
 		track_t *trk = (track_t *)vector_get(tracker->active_tracks, i);
+		
+		// Capture target status from the previous frame before resetting it
+		bool was_target = trk->is_most_deviated;
+		trk->is_most_deviated = false;
+
 		if (trk->missed_frames == 0) {
 			// --- ANOMALY CALCULATION ---
 			int32_t dx = trk->dx - global_dx;
 			int32_t dy = trk->dy - global_dy;
 			trk->deviation_squared = dx * dx + dy * dy;
 
+			// --- KINEMATIC STABILITY SCORING ---
+			// Base tracking score combines deviation and track maturity:
+			// $Score = D^2 \times Age$
+			// This scaling prevents short-lived noise spikes from hijacking the aim.
+			uint64_t score = (uint64_t)trk->deviation_squared * trk->age;
+
+			// --- TARGET HYSTERESIS (STICKY LOCK) ---
+			// If this specific track was tracked in the previous frame, multiply its score.
+			// This anchors the camera lock and stops the aim from erratically jumping across the screen.
+			if (was_target)
+				score *= 3;
+
 			// --- SUBSTITUTE CANDIDATE (Fallback) ---
-			// simply the largest deviation among ALL points, regardless of noise
-			if (trk->deviation_squared >= max_dev_fallback) {
-				max_dev_fallback = trk->deviation_squared;
+			// Evaluates all active entities using the robust age-weighted scoring matrix
+			if (score >= max_score_fallback) {
+				max_score_fallback = score;
 				best_fallback_idx = (int)i;
 			}
 			
 			// --- QUALITY CANDIDATE (Strict) ---
-			// d_current = (dx, dy), d_prev = (pdx, pdy)
 			// Dot product = dx*pdx + dy*pdy
 			// If the object moves randomly (Brownian motion), the angle between the vectors is often obtuse or 90°, 
 			// so dot_product will be <= 0. We need steady forward motion.
 			if (trk->age > 2) {
 				int32_t dot_prod =	(trk->dx * trk->prev_dx) +
 									(trk->dy * trk->prev_dy);
-				// uint32_t speed_sq = trk->dx * trk->dx +
-				// 					trk->dy * trk->dy;
 				
-				// Only if the movement is consistent // and fast enough
-				if (dot_prod > 0 /* && speed_sq >= 9 */) {
-					if (trk->deviation_squared >= max_dev_strict) {
-						max_dev_strict = trk->deviation_squared;
+				// Only if the movement is consistent
+				if (dot_prod > 0) {
+					if (score >= max_score_strict) {
+						max_score_strict = score;
 						best_strict_idx = (int)i;
 					}
 				}
@@ -243,6 +210,7 @@ static void detect_anomalous_track(
 		};
 	}
 }
+
 
 pixel_coord_t update_tracker(
 	tracker_context_t *tracker,
@@ -266,7 +234,7 @@ pixel_coord_t update_tracker(
 	detect_anomalous_track(tracker, &aim);
 
 	if (dbg_lvl)
-		printf(" got tracks ntid %d, aim: x %d y %d", tracker->next_track_id, aim.x, aim.y);
+		printf(" got tracks ntid %d, aim: x %d y %d", tracker->next_track_id, aim.x, aim.y);	// just in progress bar line
 
 	free(track_updated);
 	return aim;

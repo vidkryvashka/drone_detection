@@ -1,8 +1,6 @@
 #ifndef VISION_H
 #define VISION_H
 
-#include <stdint.h>
-
 #include "defs.h"
 #include "my_vector.h"
 
