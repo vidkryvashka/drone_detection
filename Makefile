@@ -37,7 +37,7 @@ run: $(TARGET)
 	./$(TARGET)
 
 test: $(TARGET)
-	./$(TARGET) $(TEST_IMG_PATH)
+	./$(TARGET) $(TEST_IMG_PATH) -d 5
 
 clean:
 	rm -f $(OBJS)

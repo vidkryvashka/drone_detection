@@ -26,7 +26,7 @@ typedef struct {
 
 #define FAST9_DEFAULT_THRESHOLD 40
 
-#define DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT_DEFAULT	3			// max 2D distance between points to attribute the point to the cluster
+#define DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT_DEFAULT	4			// max 2D distance between points to attribute the point to the cluster
 #define DBSCAN_MIN_CLUSTER_SIZE_DEFAULT						3			// min points number in cluster
 #define DBSCAN_MIN_CLUSTERS_COUNT_MERGE_DEFAULT				24			// Trigger threshold for secondary DBSCAN
 #define DBSCAN_ENABLE_GEOM_FILTERING_DEFAULT				false

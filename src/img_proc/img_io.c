@@ -237,7 +237,7 @@ errno_t images_to_video(
 
 	char cmd[STR_MAX_LEN * 3 + 1];
 	int written = snprintf(cmd, sizeof(cmd), 
-		"ffmpeg -framerate 24 -i \"%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p %s -y -loglevel panic",
+		"ffmpeg -framerate 24 -i \"%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p %s -y ",
 		output_img_dir, output_video_path);
 
 	if (written < 0 || (size_t)written >= sizeof(cmd)) {

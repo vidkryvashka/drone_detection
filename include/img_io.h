@@ -87,6 +87,7 @@ pixel_coord_t get_label_drone_coord(
 #define COLOR_A_DECODE(color) ((color)         & 0xFF)
 
 enum COLORS {
+	white =         COLOR_RGB_ENCODE(255, 255, 255),
 	red =           COLOR_RGB_ENCODE(255, 0, 0),
 	green =         COLOR_RGB_ENCODE(0, 255, 0),
 	blue =          COLOR_RGB_ENCODE(0, 0, 255),

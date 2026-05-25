@@ -11,4 +11,5 @@ INTERMEDIATE_OUTPUT_DIR=$2
 	--dbscan_min_clusters_count_merge 24			\
 	--track_max_distance 30							\
 	--track_max_missed 5							\
-	--track_deviation_squared_threshold 8
+	--track_deviation_squared_threshold 8			\
+	--output_video output/vidos.mp4

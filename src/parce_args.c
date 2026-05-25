@@ -204,7 +204,7 @@ static errno_t parce_longopt(
 	vision_conf_t *vconf = conf->vision_conf;
 	switch (longindex) {
 	case 4:
-		snprintf(iio_conf->output_video_path, sizeof(iio_conf->output_video_path), "%s", OUTPUT_VIDEO_PATH_DEFAULT);
+		snprintf(iio_conf->output_video_path, sizeof(iio_conf->output_video_path), "%s", optarg);
 		break;
 	case 5:
 		vconf->fast9_threshold = parce_int(optarg, 0, UINT8_MAX, FAST9_DEFAULT_THRESHOLD);

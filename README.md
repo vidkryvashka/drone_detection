@@ -1,4 +1,4 @@
-# course work drone detection
+# video stream drone detection
 
 ## compile:
 ```sh
@@ -17,12 +17,12 @@ bear -- make # helps to setup clang lints
 
    --dbscan_max_distance                max 2D distance (img diagonal percent) between points to attribute the point to the cluster, default 4
    --dbscan_min_cluster_size            min points number in cluster, default 3
-   --dbscan_min_clusters_count_merge	min cluster count to recursively merge some of them reducing count, dafault 16
+   --dbscan_min_clusters_count_merge	min cluster count to recursively merge some of them reducing count, dafault 24
    --dbscan_enable_geometric_filtering  no arg. may be excessive for optical flow calculate, default off
 
-   --track_max_distance                 the maximum distance in pixels that an object can move in 1 frame, default 50
+   --track_max_distance                 the maximum distance in pixels that an object can move in 1 frame, default 30
    --track_max_missed                   how many frames to wait before deleting a lost track, default 5
-   --track_deviation_squared_threshold  to find point with too deviative trajectory, default 25
+   --track_deviation_squared_threshold  to find point with too deviative trajectory, default 8
 
    --dbg_lvl                            0 | 1 | 2
 ```
