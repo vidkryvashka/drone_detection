@@ -42,12 +42,12 @@ $ ./bin -i $INPUT -o $INTERMEDIATE_OUTPUT_DIR \
 	# -- dbscan_enable_geometric_filtering
 ```
 
-intermediate frame example
+## After processing examples. The red dot is designated as a target.
+![small gif of FPV processing](./assets/fpv.gif)
+![larger gif with bomber, pls wait](./assets/bober.gif)
+<!-- ![](./assets/output_frame_example.jpg) -->
 
-![](https://github.com/vidkryvashka/drone_detection/assets/output_frame_example.jpg)
-![](./assets/output_frame_example.jpg)
-
-Folder with images must contain numbered filenames aka 1.jpg, 2.jpg, ...
+Folder with images should contain numbered filenames aka 1.jpg, 2.jpg, ...
 
 Then ffmpeg glues video in output folder nearby binary.
 
