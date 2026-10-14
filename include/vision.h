@@ -41,7 +41,7 @@ typedef struct {
 /**
  * @brief Keypoints search algorithm, took from habr and modified types
  */
-vector_t* fast9(
+vector_t *fast9(
 	const image_t *gray_img,
 	const uint8_t threshold,
 	const uint8_t dbg_lvl

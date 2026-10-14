@@ -15,9 +15,9 @@ vector_t* vector_create(
 
 	vec->data = calloc(size, sizeof_element);
 	if (size > 0 && !vec->data) {
-        free(vec);
-        return NULL;
-    }
+		free(vec);
+		return NULL;
+	}
 	vec->size = 0;
 	vec->capacity = size;
 	vec->sizeof_element = sizeof_element;
@@ -37,7 +37,7 @@ errno_t vector_reserve(
 
 	void *realloced_data = realloc(vec->data, new_capacity * vec->sizeof_element);
 	if (!realloced_data) {
-		ddloge(TAG, "realloc(...) lost data");
+		ddloge(TAG, "realloc failed");
 		return ENOMEM;
 	}
 
@@ -105,7 +105,6 @@ errno_t vector_erase(
 
 	vec->size--;
 	void *freed_tail = (char*)vec->data + vec->size * vec->sizeof_element;
-	// memset(freed_tail, 0, vec->sizeof_element); // may be excessive, next vector_push_back will write sth over it
 
 	return OK;
 }
@@ -116,9 +115,9 @@ errno_t vector_resize(
 ) {
 	assert(vec);
 
-	if (new_size > vec->capacity) {
-		vector_reserve(vec, new_size);
-	}
+	if (new_size > vec->capacity)
+		if (!vector_reserve(vec, new_size))
+			return ENOMEM;
 
 	if (new_size > vec->size) {
 		void *start = (char*)vec->data + vec->size * vec->sizeof_element;
@@ -129,17 +128,6 @@ errno_t vector_resize(
 
 	return OK;
 }
-
-
-// errno_t vector_clear(
-// 	vector_t *vec
-// ) {
-// 	assert(vec);
-// 	vector_resize(vec, VECTOR_DEFAULT_INIT_CAPACITY);
-// 	vec->size = 0;
-// 	vec->capacity = VECTOR_DEFAULT_INIT_CAPACITY;
-// 	return OK;
-// }
 
 
 errno_t vector_destroy(
