@@ -1,6 +1,7 @@
 #include <assert.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <string.h>
 #include <dirent.h>
 #include <assert.h>
 #include "defs.h"
@@ -159,14 +160,16 @@ errno_t image_save_jpg(
 
 	size_t dir_len = strlen(output_dir);
 	const char *separator = "";
-	
+
 	if (dir_len > 0 && output_dir[dir_len - 1] != '/')
 		separator = "/";
 
-	size_t needed_size = dir_len + strlen(separator) + strlen(pure_filename) + 1;
-	
+	size_t needed_size = dir_len + strlen(separator)
+		+ strlen(INTERMEDIATE_IMAGES_SUBDIR) + 1 + strlen(pure_filename) + 1;
+
 	char custom_output_file_path[needed_size];
-	snprintf(custom_output_file_path, needed_size, "%s%s%s", output_dir, separator, pure_filename);
+	snprintf(custom_output_file_path, needed_size, "%s%s%s/%s",
+		output_dir, separator, INTERMEDIATE_IMAGES_SUBDIR, pure_filename);
 
 	if (stbi_write_jpg(custom_output_file_path, img->width, img->height, img->channel, img->pixels, 0)) {
 		if (dbg_lvl >= 2)
@@ -236,9 +239,9 @@ errno_t images_to_video(
 	assert(output_img_dir && output_video_path);
 
 	char cmd[STR_MAX_LEN * 3 + 1];
-	int written = snprintf(cmd, sizeof(cmd), 
-		"ffmpeg -framerate 24 -i \"%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p %s -y ",
-		output_img_dir, output_video_path);
+	int written = snprintf(cmd, sizeof(cmd),
+		"ffmpeg -framerate 24 -i \"%s/%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p %s -y ",
+		output_img_dir, INTERMEDIATE_IMAGES_SUBDIR, output_video_path);
 
 	if (written < 0 || (size_t)written >= sizeof(cmd)) {
 		ddloge(TAG, "command buffer overflowed");

@@ -3,7 +3,11 @@
 INPUT=$1
 INTERMEDIATE_OUTPUT_DIR=$2
 
-./bin/program -i $INPUT -o $INTERMEDIATE_OUTPUT_DIR	\
+mkdir -p output
+
+./bin/program -i "$INPUT"							\
+	-o "$INTERMEDIATE_OUTPUT_DIR"					\
+	--dbg_lvl 0										\
 	-d 0											\
 	--fast9_threshold 40							\
 	--dbscan_max_distance 3							\

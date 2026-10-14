@@ -56,7 +56,7 @@ errno_t vector_push_back(vector_t *vec, const void *element);
  * @param index 
  * @return void* pointer to wanted data
  */
-inline void* vector_get(const vector_t *vec, const size_t index) {
+static inline void* vector_get(const vector_t *vec, const size_t index) {
 	return (vec && index < vec->size)? (char*)vec->data + index * vec->sizeof_element : NULL;
 }
 

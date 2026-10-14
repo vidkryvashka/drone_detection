@@ -18,18 +18,30 @@ SRCS = $(shell find $(SRC_DIR) -name "*.c")
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 OBJ_SUBDIRS = $(sort $(dir $(OBJS)))
 
-all: prepare $(TARGET)
+STB_HEADERS = include/foreign/stb_image.h include/foreign/stb_image_write.h
 
-prepare:
+$(STB_HEADERS):
+	@echo my dir $(@D)
+	@mkdir -p $(@D)
+	curl -sLo $@ https://raw.githubusercontent.com/nothings/stb/master/$(@F)
+
+all: $(BIN_DIR) $(OBJ_SUBDIRS) $(STB_HEADERS) $(TARGET)
+
+$(BIN_DIR):
 	@mkdir -p $(BIN_DIR)
+
+$(OBJ_DIR):
+	@mkdir -p $(OBJ_DIR)
+
+$(OBJ_SUBDIRS): $(OBJ_DIR)
 	@mkdir -p $(OBJ_SUBDIRS)
 
-$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c
+$(OBJ_DIR)/%.o: $(SRC_DIR)/%.c $(STB_HEADERS)
 	@mkdir -p $(dir $@)
 	$(CC) $(CFLAGS) -c $< -o $@
 
-$(TARGET): $(OBJS)
-	$(CC) $^ -o $@ $(LDFLAGS)
+$(TARGET): $(OBJS) | $(BIN_DIR) $(OBJ_SUBDIRS)
+	$(CC) $(OBJS) -o $@ $(LDFLAGS)
 
 compile: $(TARGET)
 

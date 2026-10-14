@@ -2,7 +2,7 @@
 #include <iso646.h>
 #include <stdint.h>
 #include <stdio.h>
-#include <sys/_types/_errno_t.h>
+// #include <sys/_types/_errno_t.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <unistd.h>
@@ -93,7 +93,7 @@ static enum IO_MODES file_or_dir_exists(
 	if (S_ISDIR(stats.st_mode))
 		return input_img_dir;
 	
-	return 0;
+	return not_selected;
 }
 
 
@@ -114,7 +114,7 @@ static errno_t organize_input(
 		break;
 	case not_selected:
 		ddloge(TAG, "input file/dir %s does not exist", input_file_or_dir_name);
-		break;
+		return EINVAL;
 	default:
 		ddloge(TAG, "impossible case default, %s", input_file_or_dir_name);
 		return EINVAL;
@@ -123,28 +123,46 @@ static errno_t organize_input(
 }
 
 
+static errno_t ensure_dir(
+	const char *path
+) {
+	switch (file_or_dir_exists(path)) {
+	case input_img_dir:
+		return OK;
+	case single_img_file:
+		ddloge(TAG, "file \"%s\" exists instead of directory, can't create", path);
+		return EINVAL;
+	case not_selected:
+		if (mkdir(path, 0777) == -1) {
+			ddloge(TAG, "failed to create directory \"%s\"", path);
+			return errno;
+		}
+		ddlogw(TAG, "directory \"%s\" does not exist, created", path);
+		return OK;
+	default:
+		ddloge(TAG, "impossible case default, \"%s\"", path);
+		return EINVAL;
+	}
+}
+
+
 static errno_t organize_img_output(
 	const char *output_file_or_dir_name,
 	img_io_conf_t *iio_conf
 ) {
-	switch (file_or_dir_exists(output_file_or_dir_name)) {
-	case 1:
-		ddloge(TAG, "file %s exists insteed of directory, can't create", output_file_or_dir_name);
-		break;
-	case 0:
-		if (mkdir(output_file_or_dir_name, 0777) == -1) {
-			ddloge(TAG, "Error creating directory");
-			return ENOMEM;
-		}
-		ddlogw(TAG, "Directory %s does not exist, created", output_file_or_dir_name);
-	case 2:
-		snprintf(iio_conf->output_dir, sizeof(iio_conf->output_dir), "%s", output_file_or_dir_name);
-		break;
-	default:
-		ddloge(TAG, "impossible case default, %s", output_file_or_dir_name);
-		return EINVAL;
+	(void)iio_conf;
+	errno_t err = ensure_dir(output_file_or_dir_name);
+	if (err != OK)
+		return err;
+
+	char intermediate[STR_MAX_LEN + sizeof(INTERMEDIATE_IMAGES_SUBDIR) + 2];
+	int written = snprintf(intermediate, sizeof(intermediate), "%s/%s",
+		output_file_or_dir_name, INTERMEDIATE_IMAGES_SUBDIR);
+	if (written < 0 || (size_t)written >= sizeof(intermediate)) {
+		ddloge(TAG, "intermediate path overflowed for \"%s\"", output_file_or_dir_name);
+		return ENOMEM;
 	}
-	return OK;
+	return ensure_dir(intermediate);
 }
 
 
@@ -289,10 +307,7 @@ static errno_t apply_opts(
 			}
 			break;
 		case 'o':
-			if (organize_img_output(optarg, iio_conf) != OK) {
-				ddloge(TAG, "organize_img_output failed");
-				return EINVAL;
-			}
+			snprintf(iio_conf->output_dir, sizeof(iio_conf->output_dir), "%s", optarg);
 			break;
 		case 'd':
 			iio_conf->dim_coef = parce_int(optarg, 0, MAX_DIM_COEF, DIM_COEF_DEFAULT);
@@ -329,29 +344,29 @@ errno_t parse_conf(
 
 	init_default_conf(conf);
 	img_io_conf_t *iio_conf = conf->img_io_conf;
-	vision_conf_t *vconf = conf->vision_conf;
-
-	if (argc > 1 && argv[1][0] != '-') {
-		snprintf(iio_conf->input_filepath, sizeof(iio_conf->input_filepath), "%s", argv[1]);
-		snprintf(iio_conf->output_dir, sizeof(iio_conf->output_dir), "%s", OUTPUT_IMG_DIR_DEFAULT);
-		iio_conf->io_mode = single_img_file;
-		conf->dbg_lvl = 2;
-	}
 
 	if (apply_opts(conf, argc, argv))
 		return EINVAL;
 
-	if (conf->dbg_lvl >= 2)
-		print_vconf(vconf);
-
-	if (argc - optind > 1) {
-		ddloge(TAG, "\nToo many unknown args\n");
+	int leftovers = argc - optind;
+	if (leftovers > 1 || (leftovers == 1 && iio_conf->io_mode != not_selected)) {
+		ddloge(TAG, "too many unknown args");
 		print_help();
 		return EINVAL;
 	}
+	if (leftovers == 1 && organize_input(argv[optind], conf) != OK)
+		return EINVAL;
 
-	if (!iio_conf->input_filepath[0] && !iio_conf->input_img_dir[0]) {
+	if (iio_conf->io_mode == not_selected) {
 		ddloge(TAG, "couldn't choose input");
+		return EINVAL;
+	}
+
+	if (conf->dbg_lvl >= 2)
+		print_vconf(conf->vision_conf);
+
+	if (organize_img_output(iio_conf->output_dir, iio_conf) != OK) {
+		ddloge(TAG, "failed for %s", iio_conf->output_dir);
 		return EINVAL;
 	}
 

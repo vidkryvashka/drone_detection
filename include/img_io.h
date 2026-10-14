@@ -5,6 +5,7 @@
 #include "my_vector.h"
 
 #define OUTPUT_IMG_DIR_DEFAULT "output"
+#define INTERMEDIATE_IMAGES_SUBDIR "intermediate_images"
 #define DIM_COEF_DEFAULT 2
 #define MAX_DIM_COEF 16
 #define OUTPUT_VIDEO_PATH_DEFAULT "output/dildo.mp4"
@@ -105,11 +106,11 @@ enum COLORS {
 	light_green =   COLOR_RGB_ENCODE(190, 255, 190), // 11: Світло-салатовий неоновий
 	dim_blue =      COLOR_RGB_ENCODE(0, 0, 180),
 	dim_yellow =    COLOR_RGB_ENCODE(50, 50, 0),
-	dim_magenta =    COLOR_RGB_ENCODE(70, 0, 70)
-} colors;
+	dim_magenta =   COLOR_RGB_ENCODE(70, 0, 70)
+};
 
 
-inline void dim_img(
+static inline void dim_img(
 	image_t *img,
 	const uint8_t dim_coef
 ) {

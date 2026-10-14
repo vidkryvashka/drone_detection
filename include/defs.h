@@ -5,6 +5,9 @@
 #include <stdint.h>
 #include <stdbool.h>
 #include <errno.h>
+#ifndef __APPLE__
+	typedef int errno_t;
+#endif
 #define	OK 0
 
 #define VERSION "69"
