@@ -18,6 +18,8 @@ SRCS = $(shell find $(SRC_DIR) -name "*.c")
 OBJS = $(SRCS:$(SRC_DIR)/%.c=$(OBJ_DIR)/%.o)
 OBJ_SUBDIRS = $(sort $(dir $(OBJS)))
 
+.DEFAULT_GOAL := all
+
 STB_HEADERS = include/foreign/stb_image.h include/foreign/stb_image_write.h
 
 $(STB_HEADERS):

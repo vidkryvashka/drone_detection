@@ -240,8 +240,8 @@ errno_t images_to_video(
 
 	char cmd[STR_MAX_LEN * 3 + 1];
 	int written = snprintf(cmd, sizeof(cmd),
-		"ffmpeg -framerate 24 -i \"%s/%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p %s -y ",
-		output_img_dir, INTERMEDIATE_IMAGES_SUBDIR, output_video_path);
+		"ffmpeg -framerate 24 -i \"%s/%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p %s -y -hide_banner -loglevel error",
+			output_img_dir, INTERMEDIATE_IMAGES_SUBDIR, output_video_path);
 
 	if (written < 0 || (size_t)written >= sizeof(cmd)) {
 		ddloge(TAG, "command buffer overflowed");
@@ -252,6 +252,7 @@ errno_t images_to_video(
 		ddloge(TAG, "failed to execute ffmpeg command");
 		return EIO;
 	}
+	ddlogi(TAG, "ffmpegged successfuly");
 
 	return OK;
 }
