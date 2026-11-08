@@ -1,11 +1,11 @@
-# intermediate_dir = "output"
-# dbg_lvl = 0
-dim_coefficient = 0
-fast9_threshold = 40
-dbscan_max_distance = 3
-dbscan_min_cluster_size = 3
-dbscan_min_clusters_count_merge = 24
-track_max_distance = 30
-track_max_missed = 5
-track_deviation_squared_threshold = 8
-# output_video $INTERMEDIATE_OUTPUT_DI/vidos.mp4
+dim_coefficient = 0						# 0 - 16 value, 0 is black img output, points only, default 2
+
+fast9_threshold = 40					# max 2D distance (img diagonal percent) between points to attribute the point to the cluster, default 4
+
+dbscan_max_distance = 3 				# min points number in cluster, default 3
+dbscan_min_cluster_size = 3				# min cluster count to recursively merge some of them reducing count, dafault 24
+dbscan_min_clusters_count_merge = 24	# no arg. may be excessive for optical flow calculate, default off
+
+track_max_distance = 30					# the maximum distance in pixels that an object can move in 1 frame, default 30
+track_max_missed = 5					# how many frames to wait before deleting a lost track, default 5
+track_deviation_squared_threshold = 8	# to find point with too deviative trajectory, default 8
