@@ -1,11 +1,19 @@
 # video stream drone detection
 
+close FPV
+
+![](./assets/fpv.gif)
+
+distant matrice
+
+![](./assets/matrice.gif)
+
 ## compile:
 ```sh
 bear -- make clean compile # helps to setup clang lints
 ```
 
-## use
+# how to use
 ```
 -h --help
 -i --input                              path to image file or folder containing images path, default in Makefile
@@ -22,10 +30,6 @@ $ ./bin -c config.toml                                       \
         --dbg_lvl $DBG_LVL                                   \
         --output_video "$INTERMEDIATE_OUTPUT_DIR/vidos.mp4"
 ```
-
-![](./assets/fpv.gif)
-
-![](./assets/matrice.gif)
 
 Folder with images must contain numbered filenames aka 1.jpg, 2.jpg, ...
 
