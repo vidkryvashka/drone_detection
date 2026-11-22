@@ -14,6 +14,8 @@
 
 #define TAG "parce_args "
 
+#define CONFIG_PATH_DEFAULT "config.toml"
+
 static bool dbg_lvl_explicitly_set = false;
 
 static inline void print_help() {
@@ -37,12 +39,12 @@ examples:\n\
 
 static struct option longopts[] = {
 	{"help", no_argument, NULL, 'h'},
+	{"config", optional_argument, NULL, 'c'},
 	{"input", required_argument, NULL, 'i'},
 	{"output_dir", required_argument, NULL, 'o'},
 	{"dim_coef", required_argument, NULL, 'd'},
 	{"output_video", required_argument, NULL, 0},
 	{"dbg_lvl", required_argument, NULL, 0},
-	{"config", optional_argument, NULL, 'c'},
 	{NULL, 0, NULL, 0}
 };
 
@@ -124,10 +126,8 @@ static errno_t ensure_dir(
 
 
 static errno_t organize_img_output(
-	const char *output_file_or_dir_name,
-	img_io_conf_t *iio_conf
+	const char *output_file_or_dir_name
 ) {
-	(void)iio_conf;
 	errno_t err = ensure_dir(output_file_or_dir_name);
 	if (err != OK)
 		return err;
@@ -155,8 +155,8 @@ static errno_t init_default_conf(
 		.dim_coef = DIM_COEF_DEFAULT
 	};
 
-	snprintf(iio_conf->output_dir, sizeof(iio_conf->output_dir), "%s", OUTPUT_IMG_DIR_DEFAULT);
-	snprintf(iio_conf->output_video_path, sizeof(iio_conf->output_video_path), "%s", OUTPUT_VIDEO_PATH_DEFAULT);
+	strcpy(iio_conf->output_dir, OUTPUT_IMG_DIR_DEFAULT);
+	strcpy(iio_conf->output_video_path, OUTPUT_VIDEO_PATH_DEFAULT);
 
 	*vconf = (vision_conf_t){
 		.frame_size = (pixel_coord_t){.x = 0, .y = 0},	// inits fully while image io
@@ -214,22 +214,6 @@ track_deviation_squared_threshold %d",\
 	);
 }
 
-
-static const char *find_config_file_arg(int argc, char **argv) {
-	for (int i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--config") == 0) {
-			if (i + 1 < argc && argv[i + 1][0] != '-') {
-				const char *dot = strrchr(argv[i + 1], '.');
-				if (dot && (!strcmp(dot, ".toml") || !strcmp(dot, ".tml")))
-					return argv[i + 1];
-			}
-			return "config.toml";
-		}
-		if (strncmp(argv[i], "--config=", 9) == 0) return argv[i] + 9;
-		if (strncmp(argv[i], "-c", 2) == 0 && argv[i][2]) return argv[i] + 2;
-	}
-	return NULL;
-}
 
 static inline void cfg_get_u64(toml_datum_t tab, const char *k1, const char *k2, void *dst, size_t sz) {
 	toml_datum_t d = toml_get(tab, k1);
@@ -309,11 +293,11 @@ static errno_t parse_toml_config(
 static errno_t apply_opts(
 	main_conf_t *conf,
 	int argc, char **argv,
-	const char *config_file
+	char *config_file
 ) {
 	assert(conf && argc && argv);
 	int opt, longindex;
-	char shortopts[] = "hi:o:d:c::";
+	char shortopts[] = "c:i:o:d:h";
 	img_io_conf_t *iio_conf = conf->img_io_conf;
 	optind = 1;
 	while ((opt = getopt_long(
@@ -325,10 +309,7 @@ static errno_t apply_opts(
 	) {
 		switch (opt) {
 		case 'c':
-			if (optarg == NULL && optind < argc && config_file != NULL &&
-			    strcmp(argv[optind], config_file) == 0) {
-				optind++;
-			}
+			strcpy(config_file, optarg);  // config_file became config.toml
 			break;
 		case 'i':
 			if (organize_input(optarg, conf) != OK) {
@@ -337,7 +318,7 @@ static errno_t apply_opts(
 			}
 			break;
 		case 'o':
-			snprintf(iio_conf->output_dir, sizeof(iio_conf->output_dir), "%s", optarg);
+			strcpy(iio_conf->output_dir, optarg);
 			break;
 		case 'd':
 			iio_conf->dim_coef = parce_int(optarg, 0, MAX_DIM_COEF, DIM_COEF_DEFAULT);
@@ -346,8 +327,8 @@ static errno_t apply_opts(
 			print_help();
 			exit(0);
 		case 0:
-			if (longindex == 4) { // output_video
-				snprintf(iio_conf->output_video_path, sizeof(iio_conf->output_video_path), "%s", optarg);
+			if (longindex == 5) { // output_video
+				strcpy(iio_conf->output_video_path, optarg);
 			} else if (longindex == 5) { // dbg_lvl
 				conf->dbg_lvl = parce_int(optarg, 0, UINT8_MAX, 0);
 				dbg_lvl_explicitly_set = true;
@@ -385,12 +366,15 @@ errno_t parse_conf(
 
 	init_default_conf(conf);
 	img_io_conf_t *iio_conf = conf->img_io_conf;
-
-	const char *config_file = find_config_file_arg(argc, argv);
-	if (config_file && parse_toml_config(config_file, conf) != OK)
-		return EINVAL;
+	char config_file[STR_MAX_LEN];
 
 	if (apply_opts(conf, argc, argv, config_file))
+		return EINVAL;
+	
+	if (!config_file[0])
+		strcpy(config_file, CONFIG_PATH_DEFAULT);
+
+	if (parse_toml_config(config_file, conf) != OK)
 		return EINVAL;
 
 	int leftovers = argc - optind;
@@ -410,7 +394,7 @@ errno_t parse_conf(
 	if (conf->dbg_lvl >= 2)
 		print_vconf(conf->vision_conf);
 
-	if (organize_img_output(iio_conf->output_dir, iio_conf) != OK) {
+	if (organize_img_output(iio_conf->output_dir) != OK) {
 		ddloge(TAG, "failed for %s", iio_conf->output_dir);
 		return EINVAL;
 	}

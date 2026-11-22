@@ -13,15 +13,20 @@ distant matrice
 bear -- make clean compile # helps to setup clang lints
 ```
 
-# how to use
-```
+## how to use
+
+### parameters
+```sh
 -h --help
--i --input                              path to image file or folder containing images path, default in Makefile
--i --output_dir                         path to folder for frames output. video goes to default "output" folder
-   --output_video                       path to video saving location, default output/dildo.mp4
-   --dbg_lvl                            0 | 1 | 2
+-c --config          path to config.toml file
+-i --input           path to image file or folder containing images path, default in Makefile
+-o --output_dir      path to folder for frames output. video goes to default "output" folder
+ㅤ   --output_video    path to video saving location, default output/dildo.mp4
+ㅤ   --dbg_lvl         0 | 1 | 2
 ```
-examples:
+ <!-- empty sign for color sequence -->
+ 
+### examples:
 ```sh
 $ ./bin expl.png
 $ ./bin -c config.toml                                       \
@@ -35,9 +40,8 @@ Folder with images must contain numbered filenames aka 1.jpg, 2.jpg, ...
 
 Then ffmpeg glues video in output folder nearby binary.
 
-## dependencies for loading & saving (io) image
-single file libs in include/foreign/
-
-	- stb_image.h
-	- stb_image_write.h
+## Dependencies for loading & saving (io) image & video demo
+### single file libs in include/foreign/
+	- [stb_image.h](https://raw.githubusercontent.com/nothings/stb/master/stb_image.h)
+	- [stb_image_write.h](https://raw.githubusercontent.com/nothings/stb/master/stb_image_write.h)
 	- ffmpeg installed

@@ -15,5 +15,6 @@ DBG_LVL=${3:-0}
 ./bin/program -c config.toml                                       \
               -i "$INPUT"                                          \
               -o "$INTERMEDIATE_OUTPUT_DIR"                        \
-              --dbg_lvl $DBG_LVL \
+              -d 0                                                 \
+              --dbg_lvl $DBG_LVL                                   \
               --output_video "$INTERMEDIATE_OUTPUT_DIR/vidos.mp4"
