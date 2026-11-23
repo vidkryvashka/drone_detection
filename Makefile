@@ -58,7 +58,7 @@ clean:
 	rm -rf $(BIN_DIR)/*
 
 clean_output:
-	rm output/*
+	rm -rf output/*
 
 .PHONY: all prepare clean run
 

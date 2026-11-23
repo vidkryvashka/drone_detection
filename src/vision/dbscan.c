@@ -21,7 +21,7 @@ static errno_t get_neighbors(
 	pixel_coord_t *point = (pixel_coord_t*)vector_get(keypoints, index);
 	if (!point) {
 		ddloge(TAG, "couldn't vector_get");
-		return -1;
+		return UNLUCKY;
 	}
 
 	vector_clear(neighbors);
@@ -60,7 +60,7 @@ static errno_t expand_cluster(
 	if (get_neighbors(keypoints, index, max_distance, seeds) != OK) {
 		vector_destroy(seeds);
 		ddloge(TAG, "couldn't get_neighbors for index %zu", index);
-		return -1;
+		return UNLUCKY;
 	}
 
 	// Check on Core Point: if there are not enough neighbors, it's noise
@@ -92,7 +92,7 @@ static errno_t expand_cluster(
 			vector_destroy(neighbors);
 			vector_destroy(seeds);
 			ddloge(TAG, "couldn't get_neighbors");
-			return -1;
+			return UNLUCKY;
 		}
 
 		// If the current point is also dense (Core Point), we expand the cluster
@@ -230,17 +230,23 @@ static clusters_context_t dbscan_core(
 		return (clusters_context_t){0};
 	}
 
-	uint16_t max_distance = sqrt(
-		vconf->frame_size.x * vconf->frame_size.x + vconf->frame_size.y * vconf->frame_size.y
-	) / 100 * dconf.max_distance_img_diagonal_percent;
+	uint32_t diag = (uint32_t)sqrt(
+		(double)vconf->frame_size.x * vconf->frame_size.x +
+		(double)vconf->frame_size.y * vconf->frame_size.y
+	);
+	uint16_t max_distance = (diag * dconf.max_distance_img_diagonal_percent) / 100;
+	if (max_distance == 0) max_distance = 1;
 
 	for (size_t i = 0; i < keypoints->size; i++)
 		cctx.ids[i] = DBSCAN_CLUSTER_POINT_UNCLASSIFIED;
 
-	for (size_t i = 0; i < keypoints->size; i++)
-		if (cctx.ids[i] == DBSCAN_CLUSTER_POINT_UNCLASSIFIED)
-			if (expand_cluster(i, max_distance, dconf.min_cluster_size, keypoints, &cctx) == OK)
+	for (size_t i = 0; i < keypoints->size; i++) {
+		if (cctx.ids[i] == DBSCAN_CLUSTER_POINT_UNCLASSIFIED) {
+			int ret = expand_cluster(i, max_distance, dconf.min_cluster_size, keypoints, &cctx);
+			if (ret == 1)
 				cctx.unique_count++;
+		}
+	}
 
 	if (cctx.unique_count == 0)
 		return cctx;
@@ -260,21 +266,17 @@ static clusters_context_t dbscan_core(
 		}
 
 		// Backup vconf fields to temporarily override them for centers merging
-		uint16_t orig_min_cluster = dconf.min_cluster_size;
-		bool orig_geom_filter = dconf.enable_geometric_filtering;
-		uint16_t orig_dist_percent = dconf.max_distance_img_diagonal_percent;
+		dbscan_conf_t orig_dconf = vconf->dbscan_conf;
 
-		dconf.min_cluster_size = 1;
-		dconf.enable_geometric_filtering = false;
-		dconf.max_distance_img_diagonal_percent = orig_dist_percent * 2;
+		vconf->dbscan_conf.min_cluster_size = 1;
+		vconf->dbscan_conf.enable_geometric_filtering = false;
+		vconf->dbscan_conf.max_distance_img_diagonal_percent = orig_dconf.max_distance_img_diagonal_percent * 2;
 
 		// Call core recursively on the centers vector. allow_merge = false prevents infinite recursion
 		clusters_context_t merged_cctx = dbscan_core(cctx.centers, vconf, dbg_lvl, false);
 
 		// Restore original config
-		dconf.min_cluster_size = orig_min_cluster;
-		dconf.enable_geometric_filtering = orig_geom_filter;
-		dconf.max_distance_img_diagonal_percent = orig_dist_percent;
+		vconf->dbscan_conf = orig_dconf;
 
 		vector_destroy(cctx.centers);
 		cctx.centers = merged_cctx.centers;

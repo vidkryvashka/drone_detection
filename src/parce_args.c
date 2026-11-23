@@ -37,14 +37,17 @@ examples:\n\
 }
 
 
+#define OPT_OUTPUT_VIDEO 1001
+#define OPT_DBG_LVL      1002
+
 static struct option longopts[] = {
 	{"help", no_argument, NULL, 'h'},
-	{"config", optional_argument, NULL, 'c'},
+	{"config", required_argument, NULL, 'c'},
 	{"input", required_argument, NULL, 'i'},
 	{"output_dir", required_argument, NULL, 'o'},
 	{"dim_coef", required_argument, NULL, 'd'},
-	{"output_video", required_argument, NULL, 0},
-	{"dbg_lvl", required_argument, NULL, 0},
+	{"output_video", required_argument, NULL, OPT_OUTPUT_VIDEO},
+	{"dbg_lvl", required_argument, NULL, OPT_DBG_LVL},
 	{NULL, 0, NULL, 0}
 };
 
@@ -155,8 +158,8 @@ static errno_t init_default_conf(
 		.dim_coef = DIM_COEF_DEFAULT
 	};
 
-	strcpy(iio_conf->output_dir, OUTPUT_IMG_DIR_DEFAULT);
-	strcpy(iio_conf->output_video_path, OUTPUT_VIDEO_PATH_DEFAULT);
+	snprintf(iio_conf->output_dir, sizeof(iio_conf->output_dir), "%s", OUTPUT_IMG_DIR_DEFAULT);
+	snprintf(iio_conf->output_video_path, sizeof(iio_conf->output_video_path), "%s", OUTPUT_VIDEO_PATH_DEFAULT);
 
 	*vconf = (vision_conf_t){
 		.frame_size = (pixel_coord_t){.x = 0, .y = 0},	// inits fully while image io
@@ -290,13 +293,27 @@ static errno_t parse_toml_config(
 }
 
 
+static const char *find_config_file_arg(int argc, char **argv) {
+	for (int i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-c") == 0 || strcmp(argv[i], "--config") == 0) {
+			if (i + 1 < argc && argv[i + 1][0] != '-') {
+				return argv[i + 1];
+			}
+			return CONFIG_PATH_DEFAULT;
+		}
+		if (strncmp(argv[i], "--config=", 9) == 0) return argv[i] + 9;
+		if (strncmp(argv[i], "-c", 2) == 0 && argv[i][2]) return argv[i] + 2;
+	}
+	return CONFIG_PATH_DEFAULT;
+}
+
+
 static errno_t apply_opts(
 	main_conf_t *conf,
-	int argc, char **argv,
-	char *config_file
+	int argc, char **argv
 ) {
 	assert(conf && argc && argv);
-	int opt, longindex;
+	int opt;
 	char shortopts[] = "c:i:o:d:h";
 	img_io_conf_t *iio_conf = conf->img_io_conf;
 	optind = 1;
@@ -305,11 +322,10 @@ static errno_t apply_opts(
 		argv,
 		shortopts,
 		longopts,
-		&longindex)) != -1
+		NULL)) != -1
 	) {
 		switch (opt) {
 		case 'c':
-			strcpy(config_file, optarg);  // config_file became config.toml
 			break;
 		case 'i':
 			if (organize_input(optarg, conf) != OK) {
@@ -318,7 +334,7 @@ static errno_t apply_opts(
 			}
 			break;
 		case 'o':
-			strcpy(iio_conf->output_dir, optarg);
+			snprintf(iio_conf->output_dir, sizeof(iio_conf->output_dir), "%s", optarg);
 			break;
 		case 'd':
 			iio_conf->dim_coef = parce_int(optarg, 0, MAX_DIM_COEF, DIM_COEF_DEFAULT);
@@ -326,13 +342,12 @@ static errno_t apply_opts(
 		case 'h':
 			print_help();
 			exit(0);
-		case 0:
-			if (longindex == 5) { // output_video
-				strcpy(iio_conf->output_video_path, optarg);
-			} else if (longindex == 5) { // dbg_lvl
-				conf->dbg_lvl = parce_int(optarg, 0, UINT8_MAX, 0);
-				dbg_lvl_explicitly_set = true;
-			}
+		case OPT_OUTPUT_VIDEO:
+			snprintf(iio_conf->output_video_path, sizeof(iio_conf->output_video_path), "%s", optarg);
+			break;
+		case OPT_DBG_LVL:
+			conf->dbg_lvl = parce_int(optarg, 0, UINT8_MAX, 0);
+			dbg_lvl_explicitly_set = true;
 			break;
 		case ':':
 			ddloge(TAG, "option -%c needs a value\n", optopt);
@@ -345,6 +360,21 @@ static errno_t apply_opts(
 		}
 	}
 	return OK;
+}
+
+
+void free_conf(
+	main_conf_t *conf
+) {
+	if (!conf) return;
+	if (conf->img_io_conf) {
+		free(conf->img_io_conf);
+		conf->img_io_conf = NULL;
+	}
+	if (conf->vision_conf) {
+		free(conf->vision_conf);
+		conf->vision_conf = NULL;
+	}
 }
 
 
@@ -366,15 +396,17 @@ errno_t parse_conf(
 
 	init_default_conf(conf);
 	img_io_conf_t *iio_conf = conf->img_io_conf;
-	char config_file[STR_MAX_LEN];
 
-	if (apply_opts(conf, argc, argv, config_file))
+	const char *config_file = find_config_file_arg(argc, argv);
+	if (config_file && access(config_file, F_OK) == 0) {
+		if (parse_toml_config(config_file, conf) != OK)
+			return EINVAL;
+	} else if (config_file && strcmp(config_file, CONFIG_PATH_DEFAULT) != 0) {
+		ddloge(TAG, "specified config file \"%s\" not found", config_file);
 		return EINVAL;
-	
-	if (!config_file[0])
-		strcpy(config_file, CONFIG_PATH_DEFAULT);
+	}
 
-	if (parse_toml_config(config_file, conf) != OK)
+	if (apply_opts(conf, argc, argv))
 		return EINVAL;
 
 	int leftovers = argc - optind;

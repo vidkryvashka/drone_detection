@@ -137,8 +137,8 @@ static void detect_anomalous_track(
 
 	if (valid_tracks_count == 0) return;
 
-	int16_t global_dx = sum_dx / (int16_t)valid_tracks_count;
-	int16_t global_dy = sum_dy / (int16_t)valid_tracks_count;
+	int16_t global_dx = sum_dx / (int32_t)valid_tracks_count;
+	int16_t global_dy = sum_dy / (int32_t)valid_tracks_count;
 
 	// Unified scoring system to heavily rely on track maturity (age) and target lock (hysteresis)
 	uint64_t max_score_strict = 0;
@@ -225,11 +225,15 @@ pixel_coord_t update_tracker(
 	size_t initial_tracks_count = tracker->active_tracks->size;
 
 	// An array to indicate whether the track received an update in this frame
-	bool *track_updated = (bool *)calloc(initial_tracks_count, sizeof(bool));
-	if (initial_tracks_count > 0 && !track_updated)
-		return aim;
+	bool *track_updated = NULL;
+	if (initial_tracks_count > 0) {
+		track_updated = (bool *)calloc(initial_tracks_count, sizeof(bool));
+		if (!track_updated)
+			return aim;
+	}
 
-	match_new_centers(tracker, new_centers, initial_tracks_count, vconf->track_conf.max_distance, track_updated);
+	if (new_centers && new_centers->size > 0)
+		match_new_centers(tracker, new_centers, initial_tracks_count, vconf->track_conf.max_distance, track_updated);
 	handle_missing_tracks(tracker, initial_tracks_count, track_updated, vconf->track_conf.max_missed);
 	detect_anomalous_track(tracker, &aim);
 

@@ -45,11 +45,17 @@ static errno_t process_one_image(
 		ddloge(TAG, "failed to save image");
 
 	if (precision) {
-		uint16_t img_diagonal = sqrt(img->width * img->width + img->height * img->height);
-		uint16_t coord_label_calculated_diff = sqrt(
-			(label_drone.x - calculated_aim.x) * (label_drone.x - calculated_aim.x) +
-			(label_drone.y - calculated_aim.y) * (label_drone.y - calculated_aim.y));
-		*precision = coord_label_calculated_diff * 100 / img_diagonal;
+		double w = img->width;
+		double h = img->height;
+		double img_diagonal = sqrt(w * w + h * h);
+		if (img_diagonal > 0.0) {
+			double dx = (double)label_drone.x - (double)calculated_aim.x;
+			double dy = (double)label_drone.y - (double)calculated_aim.y;
+			double coord_label_calculated_diff = sqrt(dx * dx + dy * dy);
+			*precision = (uint16_t)(coord_label_calculated_diff * 100.0 / img_diagonal);
+		} else {
+			*precision = 0;
+		}
 	}
 	if (cctx.ids)
 		free(cctx.ids);
@@ -112,7 +118,7 @@ errno_t apply_io_mode(
 
 	img_io_conf_t *iio_conf = conf->img_io_conf;
 	vision_conf_t *vconf = conf->vision_conf;
-	errno_t err;
+	errno_t err = OK;
 
 	switch (iio_conf->io_mode) {
 	case not_selected:
@@ -124,6 +130,9 @@ errno_t apply_io_mode(
 	case input_img_dir:
 		err = process_img_dir(conf, vconf);
 		break;
+	default:
+		ddloge(TAG, "unknown io_mode");
+		return EINVAL;
 	}
 
 	return err;

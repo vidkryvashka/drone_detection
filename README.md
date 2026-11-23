@@ -21,11 +21,10 @@ bear -- make clean compile # helps to setup clang lints
 -c --config          path to config.toml file
 -i --input           path to image file or folder containing images path, default in Makefile
 -o --output_dir      path to folder for frames output. video goes to default "output" folder
-ㅤ   --output_video    path to video saving location, default output/dildo.mp4
-ㅤ   --dbg_lvl         0 | 1 | 2
+   --output_video    path to video saving location, default output/vidos.mp4
+   --dbg_lvl         0 | 1 | 2
 ```
- <!-- empty sign for color sequence -->
- 
+
 ### examples:
 ```sh
 $ ./bin expl.png

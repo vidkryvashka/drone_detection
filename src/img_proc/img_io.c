@@ -24,7 +24,15 @@ image_t* image_load(
 	const enum CHANNELS channel
 ) {
 	image_t* img = malloc(sizeof(image_t));
-	img->pixels = stbi_load(input_filepath, (int*)&img->width, (int*)&img->height, (int*)&img->channel, channel);
+	if (!img) {
+		ddloge(TAG, "malloc image_t failed");
+		return NULL;
+	}
+
+	int w = 0, h = 0, ch = 0;
+	img->pixels = stbi_load(input_filepath, &w, &h, &ch, channel);
+	img->width = (uint16_t)w;
+	img->height = (uint16_t)h;
 	img->channel = channel;
 
 	if (!img->pixels) {
@@ -71,15 +79,15 @@ static bool is_numbered_img_file(
 	if (!filename)
 		return false;
 
-	int num;
+	int num = 0;
 	int chars_consumed = 0;
 
-	int parsed_jpg = sscanf(filename, "%d.jpg%n", &num, &chars_consumed);
-	int parsed_png = sscanf(filename, "%d.png%n", &num, &chars_consumed);
+	if (sscanf(filename, "%d.jpg%n", &num, &chars_consumed) == 1 && chars_consumed == (int)strlen(filename))
+		return true;
 
-	if (parsed_jpg || parsed_png)
-		if (chars_consumed == strlen(filename))
-			return true;
+	chars_consumed = 0;
+	if (sscanf(filename, "%d.png%n", &num, &chars_consumed) == 1 && chars_consumed == (int)strlen(filename))
+		return true;
 
 	return false;
 }
@@ -91,7 +99,7 @@ static int compare_string_pointers(const void *a, const void *b) {
 	int num_a = atoi(file_a->name);
 	int num_b = atoi(file_b->name);
 
-	return num_a - num_b;
+	return (num_a > num_b) - (num_a < num_b);
 }
 
 static void vector_print_strs(vector_t *vec) {
@@ -240,7 +248,7 @@ errno_t images_to_video(
 
 	char cmd[STR_MAX_LEN * 3 + 1];
 	int written = snprintf(cmd, sizeof(cmd),
-		"ffmpeg -framerate 24 -i \"%s/%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p %s -y -hide_banner -loglevel error",
+		"ffmpeg -framerate 24 -i \"%s/%s/%%d.jpg\" -c:v libx264 -pix_fmt yuv420p \"%s\" -y -hide_banner -loglevel error",
 			output_img_dir, INTERMEDIATE_IMAGES_SUBDIR, output_video_path);
 
 	if (written < 0 || (size_t)written >= sizeof(cmd)) {
@@ -248,11 +256,12 @@ errno_t images_to_video(
 		return ENOMEM;
 	}
 
-	if (system(cmd) == -1) {
-		ddloge(TAG, "failed to execute ffmpeg command");
+	int ret = system(cmd);
+	if (ret != 0) {
+		ddloge(TAG, "failed to execute ffmpeg command (exit code %d)", ret);
 		return EIO;
 	}
-	ddlogi(TAG, "ffmpegged successfuly");
+	ddlogi(TAG, "ffmpegged successfully");
 
 	return OK;
 }
@@ -433,7 +442,7 @@ errno_t locate_clusters_on_img(
 	assert(img && keypoints && cctx_vp);
 	if (img->channel == GRAY && image_gray_to_rgb(img) != OK) {
 		ddloge(TAG, "failed to convert image to RGB");
-		return -1;
+		return UNLUCKY;
 	}
 
 	clusters_context_t *cctx = (clusters_context_t*)cctx_vp;

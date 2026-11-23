@@ -23,10 +23,11 @@ typedef struct {
 /**
  * @brief Initialize vector with specified element size
  * 
- * @param sizeof_element was convinced to determine by sizeof()
+ * @param capacity initial element capacity
+ * @param sizeof_element size of each element
  * @return vector_t* pointer, should be freed
  */
-vector_t* vector_create(const size_t sizeof_element, size_t size);
+vector_t* vector_create(size_t capacity, size_t sizeof_element);
 
 
 /**

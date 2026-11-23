@@ -2828,7 +2828,6 @@ static void fast9ComputeScores(
 	for (i = 0; i < num_corners; i++) {
 		pixel_coord_t *p = vector_get(c, i);
 		uint8_t score = fast9CornerScore(gimg->pixels + w * p->y + p->x, pixel, threshold);
-		vector_set(scores, i, &score);
 		vector_push_back(scores, &score);
 	}
 }
@@ -5815,11 +5814,7 @@ static void fastNonmaxSuppression(
 	vector_t *scores,
 	vector_t *res
 ) {
-	uint16_t i, j, num_corners = c->size;
-
-	// Point above points (roughly) to the pixel above the one of interest, if there is a feature there.
-	uint16_t point_above = 0;
-	uint16_t point_below = 0;
+	uint16_t i, j, num_corners = (uint16_t)c->size;
 
 	vector_clear(res);
 	if (num_corners < 1)
@@ -5828,31 +5823,39 @@ static void fastNonmaxSuppression(
 	/* Find where each row begins
 	 * (the corners are output in raster scan order). A beginning of -1 signifies
 	 * that there are no corners on that row. */
-	int16_t last_row = ((pixel_coord_t *)vector_get(c, num_corners - 1))->y;
-	vector_t *row_start = vector_create(VECTOR_DEFAULT_INIT_CAPACITY, sizeof(int));
-	vector_reserve(row_start, last_row+1);
+	pixel_coord_t *last_pt = (pixel_coord_t *)vector_get(c, num_corners - 1);
+	int16_t last_row = last_pt ? last_pt->y : 0;
+	int *row_start = (int *)malloc((last_row + 1) * sizeof(int));
+	if (!row_start)
+		return;
 
-	for (i = 0; i < last_row + 1; i++) {
-		int _val = -1;
-		vector_set(row_start, i, &_val);
+	for (i = 0; i <= (uint16_t)last_row; i++) {
+		row_start[i] = -1;
 	}
 
-	int16_t prev_row = -1;	// 65536; // max uint16_t
-	for (i = 0; i < num_corners; i++)
-		if ( ((pixel_coord_t *)vector_get(c, i))->y != prev_row ) {
-			vector_set(row_start, ((pixel_coord_t *)vector_get(c, i))->y, &i);
-			prev_row = *(uint16_t *)vector_get(c, i);
+	int16_t prev_row = -1;
+	for (i = 0; i < num_corners; i++) {
+		pixel_coord_t *pt = (pixel_coord_t *)vector_get(c, i);
+		if (pt && pt->y != prev_row) {
+			row_start[pt->y] = (int)i;
+			prev_row = pt->y;
 		}
+	}
 
 	vector_reserve(res, num_corners);
-	
+
+	uint16_t point_above = 0;
+	uint16_t point_below = 0;
+
 	for (i = 0; i < num_corners; i++)
 	{
 		uint8_t score = *(uint8_t *)vector_get(scores, i);
-		uint16_t xx = ((pixel_coord_t *)vector_get(c, i))->x;
-		uint16_t yy = ((pixel_coord_t *)vector_get(c, i))->y;
+		pixel_coord_t *curr_pt = (pixel_coord_t *)vector_get(c, i);
+		if (!curr_pt) continue;
+		uint16_t xx = curr_pt->x;
+		uint16_t yy = curr_pt->y;
 
-		// // Check left
+		// Check left
 		if (
 			i > 0	&&
 			((pixel_coord_t *)vector_get(c, i-1))->x == xx-1	&&
@@ -5872,29 +5875,30 @@ static void fastNonmaxSuppression(
 
 		uint8_t suppressed = 0;
 		// Check above (if there is a valid row above)
-		if (yy != 0 && *(int *)vector_get(row_start, yy-1) != -1 )
+		if (yy > 0 && row_start[yy - 1] != -1)
 		{
-			// Make sure that current point_above is one row above.
-			if (((pixel_coord_t *)vector_get(c, point_above))->y < yy-1)
-				point_above = *(int *)vector_get(row_start, yy-1);
+			if (point_above < (uint16_t)row_start[yy - 1])
+				point_above = (uint16_t)row_start[yy - 1];
 
-			// Make point_above point to the first of the pixels above the current point, if it exists.
-			for (;
-				((pixel_coord_t *)vector_get(c, point_above))->y < yy	&&
-				((pixel_coord_t *)vector_get(c, point_above))->x < xx;
-				point_above++
-			)
-				;
+			// Make point_above point to the first corner on row yy-1 with x >= xx - 1
+			while (
+				point_above < num_corners &&
+				((pixel_coord_t *)vector_get(c, point_above))->y == yy - 1 &&
+				((pixel_coord_t *)vector_get(c, point_above))->x < xx - 1
+			) {
+				point_above++;
+			}
 
 			for (
 				j = point_above;
-				((pixel_coord_t *)vector_get(c, point_above))->y < yy	&&
-				((pixel_coord_t *)vector_get(c, point_above))->x <= xx+1;
+				j < num_corners &&
+				((pixel_coord_t *)vector_get(c, j))->y == yy - 1 &&
+				((pixel_coord_t *)vector_get(c, j))->x <= xx + 1;
 				j++
 			) {
-				uint16_t x = ((pixel_coord_t *)vector_get(c, point_above))->x;
+				uint16_t x = ((pixel_coord_t *)vector_get(c, j))->x;
 				if (
-					(x == xx - 1 || x == xx || x == xx + 1)		&&
+					(x == xx - 1 || x == xx || x == xx + 1) &&
 					COMPARE(*(uint8_t *)vector_get(scores, j), score)
 				) {
 					suppressed = 1;
@@ -5905,33 +5909,31 @@ static void fastNonmaxSuppression(
 				continue;
 		}
 
-		if (
-			yy != last_row	&&
-			*(int *)vector_get(row_start, yy-1) != -1 &&
-			point_below < num_corners
-		) {
-			if (((pixel_coord_t *)vector_get(c, point_below))->y < yy+1)
-				point_below = *(int *)vector_get(row_start, yy+1);
+		// Check below (if there is a valid row below)
+		if (yy < (uint16_t)last_row && row_start[yy + 1] != -1)
+		{
+			if (point_below < (uint16_t)row_start[yy + 1])
+				point_below = (uint16_t)row_start[yy + 1];
 
-			// Make point below point to one of the pixels belowthe current point, if it exists.
-			for (;
-				point_below < num_corners	&&
-				((pixel_coord_t *)vector_get(c, point_below))->y == yy+1	&&
-				((pixel_coord_t *)vector_get(c, point_below))->x < xx-1;
-				point_below++
-			)
-				;
+			// Make point_below point to the first corner on row yy+1 with x >= xx - 1
+			while (
+				point_below < num_corners &&
+				((pixel_coord_t *)vector_get(c, point_below))->y == yy + 1 &&
+				((pixel_coord_t *)vector_get(c, point_below))->x < xx - 1
+			) {
+				point_below++;
+			}
 
 			for (
 				j = point_below;
 				j < num_corners &&
-				((pixel_coord_t *)vector_get(c, point_below))->y == yy+1	&&
-				((pixel_coord_t *)vector_get(c, point_below))->x <= xx+1;
+				((pixel_coord_t *)vector_get(c, j))->y == yy + 1 &&
+				((pixel_coord_t *)vector_get(c, j))->x <= xx + 1;
 				j++
 			) {
-				uint16_t x = ((pixel_coord_t *)vector_get(c, point_below))->x;
+				uint16_t x = ((pixel_coord_t *)vector_get(c, j))->x;
 				if (
-					(x == xx - 1 || x == xx || x == xx + 1)	&&
+					(x == xx - 1 || x == xx || x == xx + 1) &&
 					COMPARE(*(uint8_t *)vector_get(scores, j), score)
 				) {
 					suppressed = 1;
@@ -5942,8 +5944,10 @@ static void fastNonmaxSuppression(
 				continue;
 		}
 
-		vector_push_back(res, vector_get(c, i));
+		vector_push_back(res, curr_pt);
 	}
+
+	free(row_start);
 }
 
 

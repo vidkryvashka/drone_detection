@@ -9,6 +9,7 @@
 	typedef int errno_t;
 #endif
 #define	OK 0
+#define UNLUCKY -1
 
 #define VERSION "69"
 
@@ -60,6 +61,10 @@ typedef struct {
 
 errno_t parse_conf(
 	int argc, char **argv,
+	main_conf_t *conf
+);
+
+void free_conf(
 	main_conf_t *conf
 );
 

@@ -7,19 +7,19 @@
 
 
 vector_t* vector_create(
-	size_t size,
+	size_t capacity,
 	size_t sizeof_element
 ) {
 	vector_t* vec = (vector_t *)malloc(sizeof(vector_t));
 	if (!vec) return NULL;
 
-	vec->data = calloc(size, sizeof_element);
-	if (size > 0 && !vec->data) {
+	vec->data = calloc(capacity, sizeof_element);
+	if (capacity > 0 && !vec->data) {
 		free(vec);
 		return NULL;
 	}
 	vec->size = 0;
-	vec->capacity = size;
+	vec->capacity = capacity;
 	vec->sizeof_element = sizeof_element;
 
 	return vec;
@@ -104,7 +104,6 @@ errno_t vector_erase(
 	}
 
 	vec->size--;
-	void *freed_tail = (char*)vec->data + vec->size * vec->sizeof_element;
 
 	return OK;
 }
@@ -116,7 +115,7 @@ errno_t vector_resize(
 	assert(vec);
 
 	if (new_size > vec->capacity)
-		if (!vector_reserve(vec, new_size))
+		if (vector_reserve(vec, new_size) != OK)
 			return ENOMEM;
 
 	if (new_size > vec->size) {
