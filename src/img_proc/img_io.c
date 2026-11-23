@@ -258,7 +258,7 @@ errno_t images_to_video(
 
 	int ret = system(cmd);
 	if (ret != 0) {
-		ddloge(TAG, "failed to execute ffmpeg command (exit code %d)", ret);
+		ddloge(TAG, "failed to execute ffmpeg command (exit code %d) \n mb it is not installed", ret);
 		return EIO;
 	}
 	ddlogi(TAG, "ffmpegged successfully");

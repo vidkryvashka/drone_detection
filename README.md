@@ -1,12 +1,25 @@
 # video stream drone detection
 
-close FPV
+## close FPV
 
 ![](./assets/fpv.gif)
 
-distant matrice
+## distant matrice
 
 ![](./assets/matrice.gif)
+
+# principle
+
+## fast9 looks for key points
+
+![](./assets/fast9_bevel.jpg)
+![](./assets/fast9_mavic.jpg)
+
+## dbscan groups them
+
+![](./assets/dbscan_mavic.jpg "width=400px")
+
+# than tracking looks for suspicious dynamics between frames
 
 ## compile:
 ```sh
