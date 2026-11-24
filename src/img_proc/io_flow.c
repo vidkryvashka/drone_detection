@@ -37,7 +37,7 @@ static errno_t process_one_image(
 	clusters_context_t cctx = dbscan(kpts, vconf, conf->dbg_lvl);
 	calculated_aim = update_tracker(tracker_ctx, cctx.centers, vconf, conf->dbg_lvl);
 
-
+	// ddlogi(TAG, "dim coef %d", iio_conf->dim_coef);
 	dim_img(img, iio_conf->dim_coef);
 	locate_clusters_on_img(img, kpts, &cctx, true);
 	locate_tracks_on_img(img, tracker_ctx, vconf->track_conf.deviation_squared_threshold);

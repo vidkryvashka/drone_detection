@@ -226,28 +226,20 @@ errno_t image_gray_to_rgb(
 		return ENOMEM;
 	}
 
-#if defined(USE_SIMD) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
 	size_t i = 0;
+#if defined(USE_SIMD) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
 	for (; i + 16 <= pixel_count; i += 16) {
 		uint8x16_t gray = vld1q_u8(img->pixels + i);
 		uint8x16x3_t rgb = { gray, gray, gray };
 		vst3q_u8(rgb_pixels + i * 3, rgb);
 	}
+#endif
 	for (; i < pixel_count; i++) {
 		uint8_t gray_val = img->pixels[i];
 		rgb_pixels[i * RGB + 0] = gray_val;
 		rgb_pixels[i * RGB + 1] = gray_val;
 		rgb_pixels[i * RGB + 2] = gray_val;
 	}
-#else
-	for (size_t i = 0; i < pixel_count; i++) {
-		uint8_t gray_val = img->pixels[i];
-		
-		rgb_pixels[i * RGB + 0] = gray_val;
-		rgb_pixels[i * RGB + 1] = gray_val;
-		rgb_pixels[i * RGB + 2] = gray_val;
-	}
-#endif
 
 	stbi_image_free(img->pixels);
 
@@ -413,7 +405,6 @@ errno_t dim_img(
 	const uint8_t dim_coef
 ) {
 	assert(img && img->pixels);
-		return EINVAL;
 
 	size_t total_bytes = (size_t)img->width * img->height * img->channel;
 
@@ -425,8 +416,8 @@ errno_t dim_img(
 		return OK;
 	}
 
-#if defined(USE_SIMD) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
 	size_t i = 0;
+#if defined(USE_SIMD) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
 	uint8x8_t v_coef = vdup_n_u8(dim_coef);
 	for (; i + 16 <= total_bytes; i += 16) {
 		uint8x16_t v = vld1q_u8(img->pixels + i);
@@ -437,12 +428,9 @@ errno_t dim_img(
 		uint8x16_t res = vcombine_u8(vmovn_u16(low), vmovn_u16(high));
 		vst1q_u8(img->pixels + i, res);
 	}
+#endif
 	for (; i < total_bytes; i++)
 		img->pixels[i] = (uint8_t)(((int)img->pixels[i] * dim_coef) / MAX_DIM_COEF);
-#else
-	for (size_t i = 0; i < total_bytes; i++)
-		img->pixels[i] = (uint8_t)((int)img->pixels[i] * dim_coef / MAX_DIM_COEF);
-#endif
 
 	return OK;
 }
