@@ -55,6 +55,7 @@ enum IO_MODES {
 typedef struct {
 	void *img_io_conf;
 	void *vision_conf;
+	uint16_t nprocs;
 	uint8_t dbg_lvl;
 } main_conf_t;
 

@@ -5816,7 +5816,8 @@ static void fastNonmaxSuppression(
 ) {
 	uint16_t i, j, num_corners = (uint16_t)c->size;
 
-	vector_clear(res);
+	// vector_clear(res);
+	res->size = 0;
 	if (num_corners < 1)
 		return;
 

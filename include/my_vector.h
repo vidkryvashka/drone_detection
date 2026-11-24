@@ -93,12 +93,12 @@ errno_t vector_erase(vector_t *vec, const size_t index);
 
 
 /**
- * @brief Clear vector (set size to 0)
+ * @brief memsets 0 vector, it's size is set 0
  * 
  * @param vec 
  * @return errno_t -1: no vec
  */
-#define vector_clear(vec) vector_resize(vec, 0)
+void vector_clear(vector_t *vec);
 
 
 /**

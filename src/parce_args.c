@@ -43,6 +43,7 @@ examples:\n\
 static struct option longopts[] = {
 	{"help", no_argument, NULL, 'h'},
 	{"config", required_argument, NULL, 'c'},
+	{"threads", required_argument, NULL, 'j'},
 	{"input", required_argument, NULL, 'i'},
 	{"output_dir", required_argument, NULL, 'o'},
 	{"dim_coef", required_argument, NULL, 'd'},
@@ -173,6 +174,7 @@ static errno_t init_default_conf(
 		.track_conf.deviation_squared_threshold = TRACK_DEVIATION_THRESHOLD_SQUARED_DEFAULT
 	};
 	conf->dbg_lvl = 0;
+	conf->nprocs = (uint16_t)sysconf(_SC_NPROCESSORS_ONLN) - 1;
 
 	return OK;
 }
@@ -329,6 +331,9 @@ static errno_t apply_opts(
 			// wtf, agy removed
 			// strcpy(config_file, optarg);  // config_file became config.toml
 			break;
+		case 'j':
+			conf->nprocs = parce_int(optarg, 1, (int32_t)sysconf(_SC_NPROCESSORS_ONLN), (uint16_t)sysconf(_SC_NPROCESSORS_ONLN) - 1);
+			break;
 		case 'i':
 			if (organize_input(optarg, conf) != OK) {
 				ddloge(TAG, "organize_input failed");
@@ -380,6 +385,33 @@ void free_conf(
 }
 
 
+static inline void print_info(const main_conf_t *conf) {
+	printf("using %d threads"
+#ifdef USE_SIMD
+		", available instructions:"
+	#if defined(__ARM_NEON) || defined(__ARM_NEON__)
+		"\n\t__ARM_NEON__ (using)"
+	#endif
+	#ifdef __AARCH64_SIMD__
+		"\n\t__AARCH64_SIMD__ (no use)"
+	#endif
+	#ifdef __AVX2__
+		"\n\tSIMD_AVX2 SIMD_SSE2 (not suppported)"
+	#endif
+	#ifdef SIMD_SSE2
+		"\n\tSIMD_SSE2 (not supported)"
+	#endif
+	#if (!__ARM_NEON && !SIMD_AARCH64 && !__AVX2__ && !SIMD_SSE2)
+		"none"
+	#endif
+#endif
+	"\n", conf->nprocs);
+
+	if (conf->dbg_lvl >= 2)
+		print_vconf(conf->vision_conf);
+}
+
+
 errno_t parse_conf(
 	int argc, char **argv,
 	main_conf_t *conf
@@ -425,8 +457,7 @@ errno_t parse_conf(
 		return EINVAL;
 	}
 
-	if (conf->dbg_lvl >= 2)
-		print_vconf(conf->vision_conf);
+	print_info(conf);
 
 	if (organize_img_output(iio_conf->output_dir) != OK) {
 		ddloge(TAG, "failed for %s", iio_conf->output_dir);

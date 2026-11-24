@@ -11,6 +11,21 @@ CFLAGS_W = -Wall -Wno-unused-variable -Wno-unused-function -Wno-pointer-arith
 CFLAGS_I = -Iinclude
 CFLAGS = $(CFLAGS_W) $(CFLAGS_I) -O2
 
+SIMD ?= 1
+ifeq ($(SIMD),1)
+    CFLAGS_SIMD = -DUSE_SIMD
+    ARCH := $(shell uname -m)
+    ifeq ($(ARCH),x86_64)
+        CFLAGS_SIMD += -msse4.1 -mavx2
+    else ifeq ($(ARCH),arm64)
+        CFLAGS_SIMD += -mcpu=apple-m1
+    else ifeq ($(ARCH),aarch64)
+        CFLAGS_SIMD += -march=armv8-a+simd
+    endif
+endif
+
+CFLAGS += $(CFLAGS_SIMD)
+
 # platform dependent
 LDFLAGS  = -lm -lpthread -ldl
 

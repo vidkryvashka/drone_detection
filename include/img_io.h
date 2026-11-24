@@ -110,14 +110,10 @@ enum COLORS {
 };
 
 
-static inline void dim_img(
+errno_t dim_img(
 	image_t *img,
 	const uint8_t dim_coef
-) {
-	size_t total_bytes = (size_t)img->width * img->height * img->channel;
-	for (size_t i = 0; i < total_bytes; i++)
-		img->pixels[i] = (uint8_t)((int)img->pixels[i] * dim_coef / MAX_DIM_COEF);
-}
+);
 
 errno_t locate_keypoints_on_img(
 	image_t *img,

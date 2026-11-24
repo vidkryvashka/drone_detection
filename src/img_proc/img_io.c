@@ -15,6 +15,9 @@
 #include "my_vector.h"
 #include "img_io.h"
 #include "vision.h"
+#if defined(USE_SIMD) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+	#include <arm_neon.h>
+#endif
 
 #define TAG "img_io "
 
@@ -223,6 +226,20 @@ errno_t image_gray_to_rgb(
 		return ENOMEM;
 	}
 
+#if defined(USE_SIMD) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+	size_t i = 0;
+	for (; i + 16 <= pixel_count; i += 16) {
+		uint8x16_t gray = vld1q_u8(img->pixels + i);
+		uint8x16x3_t rgb = { gray, gray, gray };
+		vst3q_u8(rgb_pixels + i * 3, rgb);
+	}
+	for (; i < pixel_count; i++) {
+		uint8_t gray_val = img->pixels[i];
+		rgb_pixels[i * RGB + 0] = gray_val;
+		rgb_pixels[i * RGB + 1] = gray_val;
+		rgb_pixels[i * RGB + 2] = gray_val;
+	}
+#else
 	for (size_t i = 0; i < pixel_count; i++) {
 		uint8_t gray_val = img->pixels[i];
 		
@@ -230,6 +247,7 @@ errno_t image_gray_to_rgb(
 		rgb_pixels[i * RGB + 1] = gray_val;
 		rgb_pixels[i * RGB + 2] = gray_val;
 	}
+#endif
 
 	stbi_image_free(img->pixels);
 
@@ -386,6 +404,46 @@ errno_t locate_keypoints_on_img(
 			}
 		}
 	}
+	return OK;
+}
+
+
+errno_t dim_img(
+	image_t *img,
+	const uint8_t dim_coef
+) {
+	assert(img && img->pixels);
+		return EINVAL;
+
+	size_t total_bytes = (size_t)img->width * img->height * img->channel;
+
+	if (dim_coef == MAX_DIM_COEF)
+		return OK;
+
+	if (dim_coef == 0) {
+		memset(img->pixels, 0, total_bytes);
+		return OK;
+	}
+
+#if defined(USE_SIMD) && (defined(__ARM_NEON) || defined(__ARM_NEON__))
+	size_t i = 0;
+	uint8x8_t v_coef = vdup_n_u8(dim_coef);
+	for (; i + 16 <= total_bytes; i += 16) {
+		uint8x16_t v = vld1q_u8(img->pixels + i);
+		uint16x8_t low = vmull_u8(vget_low_u8(v), v_coef);
+		uint16x8_t high = vmull_u8(vget_high_u8(v), v_coef);
+		low = vshrq_n_u16(low, 4);
+		high = vshrq_n_u16(high, 4);
+		uint8x16_t res = vcombine_u8(vmovn_u16(low), vmovn_u16(high));
+		vst1q_u8(img->pixels + i, res);
+	}
+	for (; i < total_bytes; i++)
+		img->pixels[i] = (uint8_t)(((int)img->pixels[i] * dim_coef) / MAX_DIM_COEF);
+#else
+	for (size_t i = 0; i < total_bytes; i++)
+		img->pixels[i] = (uint8_t)((int)img->pixels[i] * dim_coef / MAX_DIM_COEF);
+#endif
+
 	return OK;
 }
 

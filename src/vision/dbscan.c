@@ -24,15 +24,16 @@ static errno_t get_neighbors(
 		return UNLUCKY;
 	}
 
-	vector_clear(neighbors);
+	neighbors->size = 0;
 	vector_reserve(neighbors, keypoints->size);
+	int32_t max_dist_sq = (int32_t)max_distance * max_distance;
 	for (size_t i = 0; i < keypoints->size; i++) {
 		if (i == index)
 			continue;
 		pixel_coord_t *other = (pixel_coord_t *)vector_get(keypoints, i);
 		int32_t dx = point->x - other->x;
 		int32_t dy = point->y - other->y;
-		if ((dx * dx + dy * dy) <= (int32_t)max_distance * max_distance)
+		if ((dx * dx + dy * dy) <= max_dist_sq)
 			if (vector_push_back(neighbors, &i) != OK) {
 				ddloge(TAG, "failed to vector_push_back neighbor");
 				return EIO;
@@ -79,11 +80,10 @@ static errno_t expand_cluster(
 		cctx->ids[neighbor_index] = cctx->unique_count;
 	}
 
+	vector_t *neighbors = vector_create(keypoints->size, sizeof(size_t));
 	// start bypassing the queue. seeds->size can grow dynamically during push_back
 	for (size_t seed_index = 0; seed_index < seeds->size; seed_index++) {
 		size_t current_index = *(size_t *)vector_get(seeds, seed_index);
-		
-		vector_t *neighbors = vector_create(keypoints->size, sizeof(size_t));
 		if (!neighbors) {
 			vector_destroy(seeds);
 			ddloge(TAG, "couldn't vector_create neighbors");
@@ -109,13 +109,13 @@ static errno_t expand_cluster(
 					vector_push_back(seeds, &n_index);
 				} 
 				// If it used to be noise, now it has become a peripheral point of the cluster
-				else if (cctx->ids[n_index] == DBSCAN_POINT_NOISE) {
+				else if (cctx->ids[n_index] == DBSCAN_POINT_NOISE)
 					cctx->ids[n_index] = cctx->unique_count;
-				}
 			}
 		}
-		vector_destroy(neighbors);
+		neighbors->size = 0;
 	}
+	vector_destroy(neighbors);
 
 	vector_destroy(seeds);
 	return OK;

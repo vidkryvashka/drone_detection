@@ -129,6 +129,15 @@ errno_t vector_resize(
 }
 
 
+void vector_clear(
+	vector_t *vec
+) {
+	assert(vec);
+	memset(vec->data, 0, vec->size * vec->sizeof_element);
+	vec->size = 0;
+}
+
+
 errno_t vector_destroy(
 	vector_t *vec
 ) {
