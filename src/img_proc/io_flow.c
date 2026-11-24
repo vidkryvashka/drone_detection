@@ -101,7 +101,7 @@ static errno_t process_img_dir(
 		avg_distance += (double)precision / (double)filenames->size;
 	}
 	double cpu_time_used_ms = ((double)(clock() - start)) / CLOCKS_PER_SEC * 1000;
-	printf(" %.0f ms, avg precision %.2f\n", cpu_time_used_ms, avg_distance);
+	printf(" %.0f ms, avg precision %.2f%%\n", cpu_time_used_ms, avg_distance);
 
 	images_to_video(iio_conf->output_dir, iio_conf->output_video_path);
 

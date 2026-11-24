@@ -326,6 +326,8 @@ static errno_t apply_opts(
 	) {
 		switch (opt) {
 		case 'c':
+			// wtf, agy removed
+			// strcpy(config_file, optarg);  // config_file became config.toml
 			break;
 		case 'i':
 			if (organize_input(optarg, conf) != OK) {

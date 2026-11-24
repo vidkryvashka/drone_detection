@@ -41,7 +41,9 @@ static errno_t get_neighbors(
 	return OK;
 }
 
-
+/**
+ * @brief ai once thought it returns 1 on success, instead of OK
+ */
 static errno_t expand_cluster(
 	const size_t index,
 	const uint16_t max_distance,
@@ -240,13 +242,10 @@ static clusters_context_t dbscan_core(
 	for (size_t i = 0; i < keypoints->size; i++)
 		cctx.ids[i] = DBSCAN_CLUSTER_POINT_UNCLASSIFIED;
 
-	for (size_t i = 0; i < keypoints->size; i++) {
-		if (cctx.ids[i] == DBSCAN_CLUSTER_POINT_UNCLASSIFIED) {
-			int ret = expand_cluster(i, max_distance, dconf.min_cluster_size, keypoints, &cctx);
-			if (ret == 1)
+	for (size_t i = 0; i < keypoints->size; i++)
+		if (cctx.ids[i] == DBSCAN_CLUSTER_POINT_UNCLASSIFIED)
+			if (expand_cluster(i, max_distance, dconf.min_cluster_size, keypoints, &cctx) == OK)
 				cctx.unique_count++;
-		}
-	}
 
 	if (cctx.unique_count == 0)
 		return cctx;
