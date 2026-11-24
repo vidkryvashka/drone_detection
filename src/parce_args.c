@@ -171,7 +171,8 @@ static errno_t init_default_conf(
 		.dbscan_conf.enable_geometric_filtering = DBSCAN_ENABLE_GEOM_FILTERING_DEFAULT,
 		.track_conf.max_distance = TRACK_MAX_DISTANCE_DEFAULT,
 		.track_conf.max_missed = TRACK_MAX_MISSED_DEFAULT,
-		.track_conf.deviation_squared_threshold = TRACK_DEVIATION_THRESHOLD_SQUARED_DEFAULT
+		.track_conf.deviation_squared_threshold = TRACK_DEVIATION_THRESHOLD_SQUARED_DEFAULT,
+		.track_conf.prediction_steps = TRACK_PREDICTION_STEPS_DEFAULT
 	};
 	conf->dbg_lvl = 0;
 	conf->nprocs = (uint16_t)sysconf(_SC_NPROCESSORS_ONLN) - 1;
@@ -207,7 +208,8 @@ dbscan_min_clusters_count_merge %d\n\
 dbscan_enable_geometric_filtering %s\n\
 track_max_distance %d\n\
 track_max_missed %d\n\
-track_deviation_squared_threshold %d",\
+track_deviation_squared_threshold %d\n\
+track_prediction_steps %d",\
 		vconf->fast9_threshold,
 		vconf->dbscan_conf.max_distance_img_diagonal_percent,
 		vconf->dbscan_conf.min_cluster_size,
@@ -215,7 +217,8 @@ track_deviation_squared_threshold %d",\
 		vconf->dbscan_conf.enable_geometric_filtering ? "on" : "off",
 		vconf->track_conf.max_distance,
 		vconf->track_conf.max_missed,
-		vconf->track_conf.deviation_squared_threshold
+		vconf->track_conf.deviation_squared_threshold,
+		vconf->track_conf.prediction_steps
 	);
 }
 
@@ -280,6 +283,7 @@ static errno_t parse_toml_config(
 	cfg_get_u64(t, "track_max_distance", "track.max_distance", &vconf->track_conf.max_distance, sizeof(uint16_t));
 	cfg_get_u64(t, "track_max_missed", "track.max_missed", &vconf->track_conf.max_missed, sizeof(uint16_t));
 	cfg_get_u64(t, "track_deviation_squared_threshold", "track.deviation_squared_threshold", &vconf->track_conf.deviation_squared_threshold, sizeof(uint16_t));
+	cfg_get_u64(t, "track_prediction_steps", "track.prediction_steps", &vconf->track_conf.prediction_steps, sizeof(uint8_t));
 
 	d = toml_get(t, "dbscan_enable_geometric_filtering");
 	if (d.type == TOML_UNKNOWN) d = toml_seek(t, "dbscan.enable_geometric_filtering");

@@ -12,10 +12,14 @@ typedef struct {
 	bool enable_geometric_filtering;
 } dbscan_conf_t;
 
+#define TRACK_PREDICTION_STEPS_DEFAULT						5
+#define TRACK_PREDICTION_STEPS_MAX							10
+
 typedef struct {
 	uint16_t max_distance;					// maximum 2D distance in pixels that an object can move in 1 frame
 	uint16_t max_missed;					// how many frames to wait before deleting a lost track
 	uint16_t deviation_squared_threshold;
+	uint8_t prediction_steps;				// number of future frames to predict trajectory curve (e.g. 3-5)
 } track_conf_t;
 
 typedef struct {
@@ -67,11 +71,15 @@ typedef struct {
 	uint32_t id;
 	pixel_coord_t current;
 	pixel_coord_t previous;
-	pixel_coord_t predicted_next;	// Kalman filter predicted position for the next frame
+	pixel_coord_t predicted_next;	// Kalman filter predicted position for the next frame (step 1)
+	pixel_coord_t predicted_steps[TRACK_PREDICTION_STEPS_MAX]; // Multi-step predicted trajectory (steps 1..N)
+	uint8_t predicted_steps_count;
 	int16_t dx;
 	int16_t dy;
 	int16_t prev_dx;
 	int16_t prev_dy;
+	float ax;						// Estimated acceleration X
+	float ay;						// Estimated acceleration Y
 	kalman_2d_t kf;					// 2D Kalman filter
 	uint16_t age;			// How many frames in a row is it visible (confidence)
 	uint16_t missed_frames;	// How many frames isn't it visible (not to delete immediately)
@@ -83,7 +91,9 @@ typedef struct {
 typedef struct {
 	vector_t *active_tracks;
 	uint16_t next_track_id;			// counter for issuing new IDs
-	pixel_coord_t drone_predicted;	// predicted next position of the detected drone
+	pixel_coord_t drone_predicted;	// predicted next position of the detected drone (step 1)
+	pixel_coord_t drone_predicted_steps[TRACK_PREDICTION_STEPS_MAX]; // Multi-step predicted trajectory curve
+	uint8_t drone_predicted_steps_count;
 	bool drone_detected;			// whether a drone was detected in the current frame
 } tracker_context_t;
 

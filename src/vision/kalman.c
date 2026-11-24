@@ -101,19 +101,47 @@ void kalman_2d_update(
 	kalman_1d_update(&kf->kf_y, meas_y);
 }
 
-pixel_coord_t kalman_2d_get_predicted_pos(
+pixel_coord_t kalman_2d_get_predicted_pos_curved(
 	const kalman_2d_t *kf,
+	float ax,
+	float ay,
 	float dt
 ) {
 	assert(kf);
-	int32_t px = (int32_t)roundf(kf->kf_x.x + kf->kf_x.v * dt);
-	int32_t py = (int32_t)roundf(kf->kf_y.x + kf->kf_y.v * dt);
+	// Kinematic prediction with optional turning acceleration:
+	// x(t + dt) = x + v * dt + 0.5 * a * dt^2 (with slight damping factor for further steps)
+	float damp = 1.0f / (1.0f + 0.08f * dt);
+	float px_f = kf->kf_x.x + kf->kf_x.v * dt + 0.5f * ax * dt * dt * damp;
+	float py_f = kf->kf_y.x + kf->kf_y.v * dt + 0.5f * ay * dt * dt * damp;
+
+	int32_t px = (int32_t)roundf(px_f);
+	int32_t py = (int32_t)roundf(py_f);
 	if (px < 0) px = 0;
 	if (py < 0) py = 0;
 	if (px > UINT16_MAX) px = UINT16_MAX;
 	if (py > UINT16_MAX) py = UINT16_MAX;
 
 	return (pixel_coord_t){(uint16_t)px, (uint16_t)py};
+}
+
+pixel_coord_t kalman_2d_get_predicted_pos(
+	const kalman_2d_t *kf,
+	float dt
+) {
+	return kalman_2d_get_predicted_pos_curved(kf, 0.0f, 0.0f, dt);
+}
+
+void kalman_2d_get_predicted_trajectory(
+	const kalman_2d_t *kf,
+	float ax,
+	float ay,
+	pixel_coord_t *out_coords,
+	uint8_t steps
+) {
+	assert(kf && out_coords);
+	for (uint8_t i = 0; i < steps; i++) {
+		out_coords[i] = kalman_2d_get_predicted_pos_curved(kf, ax, ay, (float)(i + 1));
+	}
 }
 
 pixel_coord_t kalman_2d_get_current_pos(

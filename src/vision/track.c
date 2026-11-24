@@ -46,6 +46,7 @@ static void match_new_centers(
 	const vector_t *new_centers,
 	const size_t initial_tracks_count,
 	const uint16_t max_distance,
+	const uint8_t prediction_steps,
 	bool *track_updated
 ) {
 	assert(new_centers);
@@ -70,8 +71,21 @@ static void match_new_centers(
 			trk->dx = (int16_t)roundf(trk->kf.kf_x.v);
 			trk->dy = (int16_t)roundf(trk->kf.kf_y.v);
 
-			// Predicted position for the next frame (k + 1)
-			trk->predicted_next = kalman_2d_get_predicted_pos(&trk->kf, 1.0f);
+			// Estimate turning acceleration with exponential moving average
+			if (trk->age > 2) {
+				float inst_ax = trk->kf.kf_x.v - (float)trk->prev_dx;
+				float inst_ay = trk->kf.kf_y.v - (float)trk->prev_dy;
+				trk->ax = 0.6f * trk->ax + 0.4f * inst_ax;
+				trk->ay = 0.6f * trk->ay + 0.4f * inst_ay;
+			} else {
+				trk->ax = 0.0f;
+				trk->ay = 0.0f;
+			}
+
+			// Multi-step trajectory prediction curve
+			trk->predicted_steps_count = prediction_steps;
+			kalman_2d_get_predicted_trajectory(&trk->kf, trk->ax, trk->ay, trk->predicted_steps, prediction_steps);
+			trk->predicted_next = trk->predicted_steps[0];
 
 			trk->age++;
 			trk->missed_frames = 0;
@@ -86,14 +100,18 @@ static void match_new_centers(
 				.dy = 0,
 				.prev_dx = 0,
 				.prev_dy = 0,
+				.ax = 0.0f,
+				.ay = 0.0f,
 				.age = 1,
 				.missed_frames = 0,
 				.deviation_squared = 0,
-				.is_most_deviated = false
+				.is_most_deviated = false,
+				.predicted_steps_count = prediction_steps
 			};
 			kalman_2d_init(&new_track.kf, (float)center->x, (float)center->y,
 			               KF_Q_POS_DEFAULT, KF_Q_VEL_DEFAULT, KF_R_DEFAULT);
-			new_track.predicted_next = kalman_2d_get_predicted_pos(&new_track.kf, 1.0f);
+			kalman_2d_get_predicted_trajectory(&new_track.kf, 0.0f, 0.0f, new_track.predicted_steps, prediction_steps);
+			new_track.predicted_next = new_track.predicted_steps[0];
 			vector_push_back(tracker->active_tracks, &new_track);
 		}
 	}
@@ -104,7 +122,8 @@ static void handle_missing_tracks(
 	tracker_context_t *tracker,
 	const size_t initial_tracks_count,
 	const bool *track_updated,
-	uint16_t max_missed
+	uint16_t max_missed,
+	uint8_t prediction_steps
 ) {
 	for (int j = (int)initial_tracks_count - 1; j >= 0; j--) {
 		if (track_updated[j]) continue;
@@ -123,7 +142,11 @@ static void handle_missing_tracks(
 			trk->prev_dy = trk->dy;
 			trk->dx = (int16_t)roundf(trk->kf.kf_x.v);
 			trk->dy = (int16_t)roundf(trk->kf.kf_y.v);
-			trk->predicted_next = kalman_2d_get_predicted_pos(&trk->kf, 1.0f);
+			trk->ax *= 0.7f;
+			trk->ay *= 0.7f;
+			trk->predicted_steps_count = prediction_steps;
+			kalman_2d_get_predicted_trajectory(&trk->kf, trk->ax, trk->ay, trk->predicted_steps, prediction_steps);
+			trk->predicted_next = trk->predicted_steps[0];
 		}
 	}
 }
@@ -218,6 +241,10 @@ static void detect_anomalous_track(
 		trk->is_most_deviated = true;
 		tracker->drone_detected = true;
 		tracker->drone_predicted = trk->predicted_next;
+		tracker->drone_predicted_steps_count = trk->predicted_steps_count;
+		for (uint8_t s = 0; s < trk->predicted_steps_count && s < TRACK_PREDICTION_STEPS_MAX; s++) {
+			tracker->drone_predicted_steps[s] = trk->predicted_steps[s];
+		}
 		*aim = (pixel_coord_t){
 			.x = trk->current.x,
 			.y = trk->current.y
@@ -254,14 +281,21 @@ pixel_coord_t update_tracker(
 			return aim;
 	}
 
+	uint8_t prediction_steps = (vconf && vconf->track_conf.prediction_steps > 0)
+		? vconf->track_conf.prediction_steps
+		: TRACK_PREDICTION_STEPS_DEFAULT;
+	if (prediction_steps > TRACK_PREDICTION_STEPS_MAX)
+		prediction_steps = TRACK_PREDICTION_STEPS_MAX;
+
 	if (new_centers && new_centers->size > 0)
-		match_new_centers(tracker, new_centers, initial_tracks_count, vconf->track_conf.max_distance, track_updated);
-	handle_missing_tracks(tracker, initial_tracks_count, track_updated, vconf->track_conf.max_missed);
+		match_new_centers(tracker, new_centers, initial_tracks_count, vconf->track_conf.max_distance, prediction_steps, track_updated);
+	handle_missing_tracks(tracker, initial_tracks_count, track_updated, vconf->track_conf.max_missed, prediction_steps);
 	detect_anomalous_track(tracker, vconf, &aim);
 
 	if (dbg_lvl)
-		printf(" got tracks ntid %d, aim: x %d y %d, pred: x %d y %d",
-			tracker->next_track_id, aim.x, aim.y, tracker->drone_predicted.x, tracker->drone_predicted.y);
+		printf(" got tracks ntid %d, aim: x %d y %d, pred(1..%d): x %d y %d",
+			tracker->next_track_id, aim.x, aim.y, tracker->drone_predicted_steps_count,
+			tracker->drone_predicted.x, tracker->drone_predicted.y);
 
 	free(track_updated);
 	return aim;

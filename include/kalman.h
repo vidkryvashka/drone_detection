@@ -53,6 +53,21 @@ pixel_coord_t kalman_2d_get_predicted_pos(
 	float dt
 );
 
+pixel_coord_t kalman_2d_get_predicted_pos_curved(
+	const kalman_2d_t *kf,
+	float ax,
+	float ay,
+	float dt
+);
+
+void kalman_2d_get_predicted_trajectory(
+	const kalman_2d_t *kf,
+	float ax,
+	float ay,
+	pixel_coord_t *out_coords,
+	uint8_t steps
+);
+
 pixel_coord_t kalman_2d_get_current_pos(
 	const kalman_2d_t *kf
 );

@@ -584,12 +584,35 @@ errno_t locate_tracks_on_img(
 			continue;
 		if (trk->age > 1 && trk->missed_frames == 0) {
 			if (trk->is_most_deviated) {
+				// Historical path segment (previous -> current)
 				draw_line_on_img(img, trk->previous, trk->current, red);
 				locate_single_point_on_img(img, trk->current, red, 5);
 
-				// Draw predicted next position from Kalman filter
-				draw_line_on_img(img, trk->current, trk->predicted_next, bright_lime);
-				locate_single_point_on_img(img, trk->predicted_next, bright_lime, 4);
+				// Draw multi-step predicted trajectory curve
+				static const uint32_t curve_colors[] = {
+					bright_lime,   // step 1
+					bright_lime,   // step 2
+					acid_shatrez,  // step 3
+					clear_yellow,  // step 4
+					flame_orange   // step 5
+				};
+				size_t num_colors = sizeof(curve_colors) / sizeof(curve_colors[0]);
+
+				pixel_coord_t prev_pt = trk->current;
+				uint8_t n_steps = trk->predicted_steps_count;
+				for (uint8_t s = 0; s < n_steps && s < TRACK_PREDICTION_STEPS_MAX; s++) {
+					pixel_coord_t curr_pt = trk->predicted_steps[s];
+					uint32_t col = curve_colors[s % num_colors];
+
+					// Draw trajectory curve segment
+					draw_line_on_img(img, prev_pt, curr_pt, col);
+
+					// Draw predicted waypoint marker along the curve
+					uint16_t pt_radius = (s == 0) ? 4 : ((s < 3) ? 3 : 2);
+					locate_single_point_on_img(img, curr_pt, col, pt_radius);
+
+					prev_pt = curr_pt;
+				}
 			} else if (trk->deviation_squared > track_deviation_squared_threshold) {
 				draw_line_on_img(img, trk->previous, trk->current, dim_magenta);
 				locate_single_point_on_img(img, trk->current, dim_magenta, 4);
