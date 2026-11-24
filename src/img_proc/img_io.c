@@ -586,6 +586,10 @@ errno_t locate_tracks_on_img(
 			if (trk->is_most_deviated) {
 				draw_line_on_img(img, trk->previous, trk->current, red);
 				locate_single_point_on_img(img, trk->current, red, 5);
+
+				// Draw predicted next position from Kalman filter
+				draw_line_on_img(img, trk->current, trk->predicted_next, bright_lime);
+				locate_single_point_on_img(img, trk->predicted_next, bright_lime, 4);
 			} else if (trk->deviation_squared > track_deviation_squared_threshold) {
 				draw_line_on_img(img, trk->previous, trk->current, dim_magenta);
 				locate_single_point_on_img(img, trk->current, dim_magenta, 4);

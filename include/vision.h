@@ -3,6 +3,7 @@
 
 #include "defs.h"
 #include "my_vector.h"
+#include "kalman.h"
 
 typedef struct {
 	uint16_t max_distance_img_diagonal_percent;
@@ -66,10 +67,12 @@ typedef struct {
 	uint32_t id;
 	pixel_coord_t current;
 	pixel_coord_t previous;
+	pixel_coord_t predicted_next;	// Kalman filter predicted position for the next frame
 	int16_t dx;
 	int16_t dy;
 	int16_t prev_dx;
-    int16_t prev_dy;
+	int16_t prev_dy;
+	kalman_2d_t kf;					// 2D Kalman filter
 	uint16_t age;			// How many frames in a row is it visible (confidence)
 	uint16_t missed_frames;	// How many frames isn't it visible (not to delete immediately)
 	uint16_t deviation_squared;
@@ -79,7 +82,9 @@ typedef struct {
 // The tracker context that lives between process_one_image calls
 typedef struct {
 	vector_t *active_tracks;
-	uint16_t next_track_id;		// counter for issuing new IDs
+	uint16_t next_track_id;			// counter for issuing new IDs
+	pixel_coord_t drone_predicted;	// predicted next position of the detected drone
+	bool drone_detected;			// whether a drone was detected in the current frame
 } tracker_context_t;
 
 
