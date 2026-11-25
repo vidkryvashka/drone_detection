@@ -419,7 +419,7 @@ void free_conf(
 
 
 static inline void print_info(const main_conf_t *conf) {
-	printf("using %d threads"
+	printf("pretending on %d threads, but found no use for them yet"
 #ifdef USE_SIMD
 		", available instructions:"
 	#if defined(__ARM_NEON) || defined(__ARM_NEON__)

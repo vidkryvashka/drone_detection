@@ -263,6 +263,11 @@ pixel_coord_t update_tracker(
 	if (!tracker || !tracker->active_tracks)
 		return aim;
 
+	tracker->drone_detected = false;
+	tracker->drone_predicted = (pixel_coord_t){0, 0};
+	tracker->drone_predicted_steps_count = 0;
+	memset(tracker->drone_predicted_steps, 0, sizeof(tracker->drone_predicted_steps));
+
 	size_t initial_tracks_count = tracker->active_tracks->size;
 
 	// Predict next state for all existing tracks to current frame
