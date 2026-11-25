@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <dirent.h>
+#include <math.h>
 #include <assert.h>
 #include "defs.h"
 
@@ -44,6 +45,53 @@ image_t* image_load(
 		return NULL;
 	}
 	return img;
+}
+
+
+errno_t calculate_img_diagonal(
+	img_io_conf_t *iio_conf,
+	pixel_coord_t *frame_size
+) {
+	assert(iio_conf);
+	if (iio_conf->img_diagonal > 0)
+		return OK;
+
+	int w = 0, h = 0, comp = 0;
+	if (iio_conf->io_mode == single_img_file) {
+		if (iio_conf->input_filepath[0] && stbi_info(iio_conf->input_filepath, &w, &h, &comp)) {
+			double diag = sqrt((double)w * w + (double)h * h);
+			iio_conf->img_diagonal = (uint16_t)round(diag);
+			if (frame_size) {
+				frame_size->x = (uint16_t)w;
+				frame_size->y = (uint16_t)h;
+			}
+			return OK;
+		}
+	} else if (iio_conf->io_mode == input_img_dir) {
+		if (iio_conf->input_img_dir[0]) {
+			vector_t *files = get_filepathes_from_dir(iio_conf->input_img_dir);
+			if (files && files->size > 0) {
+				str_t *f0 = (str_t *)vector_get(files, 0);
+				char first_path[STR_MAX_LEN * 2 + 2];
+				snprintf(first_path, sizeof(first_path), "%s/%s", iio_conf->input_img_dir, f0->name);
+				if (stbi_info(first_path, &w, &h, &comp)) {
+					double diag = sqrt((double)w * w + (double)h * h);
+					iio_conf->img_diagonal = (uint16_t)round(diag);
+					if (frame_size) {
+						frame_size->x = (uint16_t)w;
+						frame_size->y = (uint16_t)h;
+					}
+				}
+				vector_destroy(files);
+				if (iio_conf->img_diagonal > 0)
+					return OK;
+			}
+			if (files)
+				vector_destroy(files);
+		}
+	}
+
+	return ENOENT;
 }
 
 
