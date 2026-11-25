@@ -2,7 +2,7 @@
 
 ## close FPV
 
-![](./assets/fpv.gif)
+![](./assets/kalman_fpv.gif)
 
 ## distant matrice
 
@@ -19,7 +19,7 @@
 
 ![](./assets/dbscan_mavic.jpg "width=400px")
 
-# than tracking looks for suspicious dynamics between frames
+# than tracking with Kalman filter looks for suspicious dynamics between frames
 
 ## compile:
 ```sh
@@ -29,7 +29,7 @@ bear -- make clean compile # helps to setup clang lints
 ## how to use
 
 ### parameters
-```sh
+```
 -h --help
 -c --config          path to config.toml file
 -i --input           path to image file or folder containing images path, default in Makefile
