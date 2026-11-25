@@ -2,6 +2,7 @@
 #include <iso646.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <math.h>
 #include <sys/stat.h>
 #include <string.h>
 #include <unistd.h>
@@ -147,6 +148,9 @@ static errno_t organize_img_output(
 }
 
 
+static float dbscan_max_distance_diagonal_percent = DBSCAN_MAX_DISTANCE_DIAGONAL_PERCENT_DEFAULT;
+static float track_max_distance_diagonal_percent = TRACK_MAX_DISTANCE_DIAGONAL_PERCENT_DEFAULT;
+
 static errno_t init_default_conf(
 	main_conf_t *conf
 ) {
@@ -156,20 +160,24 @@ static errno_t init_default_conf(
 	vision_conf_t *vconf = conf->vision_conf;
 
 	*iio_conf = (img_io_conf_t){
-		.dim_coef = DIM_COEF_DEFAULT
+		.dim_coef = DIM_COEF_DEFAULT,
+		.img_diagonal = 0
 	};
 
 	snprintf(iio_conf->output_dir, sizeof(iio_conf->output_dir), "%s", OUTPUT_IMG_DIR_DEFAULT);
 	snprintf(iio_conf->output_video_path, sizeof(iio_conf->output_video_path), "%s", OUTPUT_VIDEO_PATH_DEFAULT);
 
+	dbscan_max_distance_diagonal_percent = DBSCAN_MAX_DISTANCE_DIAGONAL_PERCENT_DEFAULT;
+	track_max_distance_diagonal_percent = TRACK_MAX_DISTANCE_DIAGONAL_PERCENT_DEFAULT;
+
 	*vconf = (vision_conf_t){
 		.frame_size = (pixel_coord_t){.x = 0, .y = 0},	// inits fully while image io
 		.fast9_threshold = FAST9_DEFAULT_THRESHOLD,
-		.dbscan_conf.max_distance_img_diagonal_percent = DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT_DEFAULT,
+		.dbscan_conf.max_distance = 0,
 		.dbscan_conf.min_cluster_size = DBSCAN_MIN_CLUSTER_SIZE_DEFAULT,
 		.dbscan_conf.min_clusters_count_merge = DBSCAN_MIN_CLUSTERS_COUNT_MERGE_DEFAULT,
-		.dbscan_conf.enable_geometric_filtering = DBSCAN_ENABLE_GEOM_FILTERING_DEFAULT,
-		.track_conf.max_distance = TRACK_MAX_DISTANCE_DEFAULT,
+		.dbscan_conf.enable_geometric_filtering = DBSCAN_ENABLE_GEOMETRIC_FILTERING_DEFAULT,
+		.track_conf.max_distance = 0,
 		.track_conf.max_missed = TRACK_MAX_MISSED_DEFAULT,
 		.track_conf.deviation_squared_threshold = TRACK_DEVIATION_THRESHOLD_SQUARED_DEFAULT,
 		.track_conf.prediction_steps = TRACK_PREDICTION_STEPS_DEFAULT
@@ -202,7 +210,7 @@ static inline void print_vconf(
 ) {
 	ddlogi(TAG, "vision config:\n\
 fast9_threshold %d\n\
-dbscan_max_distance_img_diagonal_percent %d\n\
+dbscan_max_distance %d\n\
 dbscan_min_cluster_size %d\n\
 dbscan_min_clusters_count_merge %d\n\
 dbscan_enable_geometric_filtering %s\n\
@@ -211,7 +219,7 @@ track_max_missed %d\n\
 track_deviation_squared_threshold %d\n\
 track_prediction_steps %d",\
 		vconf->fast9_threshold,
-		vconf->dbscan_conf.max_distance_img_diagonal_percent,
+		vconf->dbscan_conf.max_distance,
 		vconf->dbscan_conf.min_cluster_size,
 		vconf->dbscan_conf.min_clusters_count_merge,
 		vconf->dbscan_conf.enable_geometric_filtering ? "on" : "off",
@@ -225,11 +233,33 @@ track_prediction_steps %d",\
 
 static inline void cfg_get_u64(toml_datum_t tab, const char *k1, const char *k2, void *dst, size_t sz) {
 	toml_datum_t d = toml_get(tab, k1);
-	if (d.type == TOML_UNKNOWN && k2) d = toml_seek(tab, k2);
+	if (d.type == TOML_UNKNOWN && k2)
+		d = toml_seek(tab, k2);
 	if (d.type == TOML_INT64) {
-		if (sz == sizeof(uint8_t)) *(uint8_t *)dst = (uint8_t)d.u.int64;
-		else if (sz == sizeof(uint16_t)) *(uint16_t *)dst = (uint16_t)d.u.int64;
+		if (sz == sizeof(uint8_t))
+			*(uint8_t *)dst = (uint8_t)d.u.int64;
+		else if (sz == sizeof(uint16_t))
+			*(uint16_t *)dst = (uint16_t)d.u.int64;
 	}
+}
+
+static inline void cfg_get_f64(toml_datum_t tab, const char *k1, const char *k2, void *dst, size_t sz) {
+	toml_datum_t d = toml_get(tab, k1);
+	if (d.type == TOML_UNKNOWN && k2)
+		d = toml_seek(tab, k2);
+
+	double val = 0.0;
+	if (d.type == TOML_FP64)
+		val = d.u.fp64;
+	else if (d.type == TOML_INT64)
+		val = (double)d.u.int64;
+	else
+		return;
+
+	if (sz == sizeof(float))
+		*(float *)dst = (float)val;
+	else if (sz == sizeof(double))
+		*(double *)dst = val;
 }
 
 static errno_t parse_toml_config(
@@ -275,16 +305,15 @@ static errno_t parse_toml_config(
 	if (d.type == TOML_UNKNOWN) d = toml_get(t, "dim_coef");
 	if (d.type == TOML_INT64 && d.u.int64 >= 0 && d.u.int64 <= MAX_DIM_COEF)
 		iio_conf->dim_coef = (uint8_t)d.u.int64;
-
+	
 	cfg_get_u64(t, "fast9_threshold", NULL, &vconf->fast9_threshold, sizeof(uint8_t));
-	cfg_get_u64(t, "dbscan_max_distance", "dbscan.max_distance", &vconf->dbscan_conf.max_distance_img_diagonal_percent, sizeof(uint16_t));
+	cfg_get_f64(t, "dbscan_max_distance", "dbscan.max_distance", &dbscan_max_distance_diagonal_percent, sizeof(float));
 	cfg_get_u64(t, "dbscan_min_cluster_size", "dbscan.min_cluster_size", &vconf->dbscan_conf.min_cluster_size, sizeof(uint8_t));
 	cfg_get_u64(t, "dbscan_min_clusters_count_merge", "dbscan.min_clusters_count_merge", &vconf->dbscan_conf.min_clusters_count_merge, sizeof(uint16_t));
-	cfg_get_u64(t, "track_max_distance", "track.max_distance", &vconf->track_conf.max_distance, sizeof(uint16_t));
+	cfg_get_f64(t, "track_max_distance", "track.max_distance", &track_max_distance_diagonal_percent, sizeof(float));
 	cfg_get_u64(t, "track_max_missed", "track.max_missed", &vconf->track_conf.max_missed, sizeof(uint16_t));
 	cfg_get_u64(t, "track_deviation_squared_threshold", "track.deviation_squared_threshold", &vconf->track_conf.deviation_squared_threshold, sizeof(uint16_t));
 	cfg_get_u64(t, "track_prediction_steps", "track.prediction_steps", &vconf->track_conf.prediction_steps, sizeof(uint8_t));
-
 	d = toml_get(t, "dbscan_enable_geometric_filtering");
 	if (d.type == TOML_UNKNOWN) d = toml_seek(t, "dbscan.enable_geometric_filtering");
 	if (d.type == TOML_BOOLEAN) vconf->dbscan_conf.enable_geometric_filtering = d.u.boolean;
@@ -416,6 +445,70 @@ static inline void print_info(const main_conf_t *conf) {
 }
 
 
+static errno_t calculate_img_diagonal(
+	img_io_conf_t *iio_conf,
+	pixel_coord_t *frame_size
+) {
+	assert(iio_conf);
+	if (iio_conf->img_diagonal > 0)
+		return OK;
+
+	int w = 0, h = 0, comp = 0;
+	if (iio_conf->io_mode == single_img_file) {
+		if (iio_conf->input_filepath[0] && stbi_info(iio_conf->input_filepath, &w, &h, &comp)) {
+			double diag = sqrt((double)w * w + (double)h * h);
+			iio_conf->img_diagonal = (uint16_t)round(diag);
+			if (frame_size) {
+				frame_size->x = (uint16_t)w;
+				frame_size->y = (uint16_t)h;
+			}
+			return OK;
+		}
+	} else if (iio_conf->io_mode == input_img_dir) {
+		if (iio_conf->input_img_dir[0]) {
+			vector_t *files = get_filepathes_from_dir(iio_conf->input_img_dir);
+			if (files && files->size > 0) {
+				str_t *f0 = (str_t *)vector_get(files, 0);
+				char first_path[STR_MAX_LEN * 2 + 2];
+				snprintf(first_path, sizeof(first_path), "%s/%s", iio_conf->input_img_dir, f0->name);
+				if (stbi_info(first_path, &w, &h, &comp)) {
+					double diag = sqrt((double)w * w + (double)h * h);
+					iio_conf->img_diagonal = (uint16_t)round(diag);
+					if (frame_size) {
+						frame_size->x = (uint16_t)w;
+						frame_size->y = (uint16_t)h;
+					}
+				}
+				vector_destroy(files);
+				if (iio_conf->img_diagonal > 0)
+					return OK;
+			}
+			if (files)
+				vector_destroy(files);
+		}
+	}
+
+	return ENOENT;
+}
+
+
+static void update_vision_distance_confs(main_conf_t *conf) {
+	assert(conf && conf->img_io_conf && conf->vision_conf);
+	img_io_conf_t *iio_conf = (img_io_conf_t *)conf->img_io_conf;
+	vision_conf_t *vconf = (vision_conf_t *)conf->vision_conf;
+
+	if (iio_conf->img_diagonal > 0) {
+		vconf->dbscan_conf.max_distance = (uint16_t)round((double)iio_conf->img_diagonal * (double)dbscan_max_distance_diagonal_percent / 100.0);
+		if (vconf->dbscan_conf.max_distance == 0)
+			vconf->dbscan_conf.max_distance = 1;
+
+		vconf->track_conf.max_distance = (uint16_t)round((double)iio_conf->img_diagonal * (double)track_max_distance_diagonal_percent / 100.0);
+		if (vconf->track_conf.max_distance == 0)
+			vconf->track_conf.max_distance = 1;
+	}
+}
+
+
 errno_t parse_conf(
 	int argc, char **argv,
 	main_conf_t *conf
@@ -434,6 +527,7 @@ errno_t parse_conf(
 
 	init_default_conf(conf);
 	img_io_conf_t *iio_conf = conf->img_io_conf;
+	vision_conf_t *vconf = conf->vision_conf;
 
 	const char *config_file = find_config_file_arg(argc, argv);
 	if (config_file && access(config_file, F_OK) == 0) {
@@ -460,6 +554,9 @@ errno_t parse_conf(
 		ddloge(TAG, "couldn't choose input");
 		return EINVAL;
 	}
+
+	calculate_img_diagonal(iio_conf, &vconf->frame_size);
+	update_vision_distance_confs(conf);
 
 	print_info(conf);
 

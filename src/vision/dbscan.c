@@ -232,11 +232,7 @@ static clusters_context_t dbscan_core(
 		return (clusters_context_t){0};
 	}
 
-	uint32_t diag = (uint32_t)sqrt(
-		(double)vconf->frame_size.x * vconf->frame_size.x +
-		(double)vconf->frame_size.y * vconf->frame_size.y
-	);
-	uint16_t max_distance = (diag * dconf.max_distance_img_diagonal_percent) / 100;
+	uint16_t max_distance = dconf.max_distance;
 	if (max_distance == 0) max_distance = 1;
 
 	for (size_t i = 0; i < keypoints->size; i++)
@@ -269,7 +265,7 @@ static clusters_context_t dbscan_core(
 
 		vconf->dbscan_conf.min_cluster_size = 1;
 		vconf->dbscan_conf.enable_geometric_filtering = false;
-		vconf->dbscan_conf.max_distance_img_diagonal_percent = orig_dconf.max_distance_img_diagonal_percent * 2;
+		vconf->dbscan_conf.max_distance = orig_dconf.max_distance * 2;
 
 		// Call core recursively on the centers vector. allow_merge = false prevents infinite recursion
 		clusters_context_t merged_cctx = dbscan_core(cctx.centers, vconf, dbg_lvl, false);

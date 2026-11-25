@@ -6,7 +6,7 @@
 #include "kalman.h"
 
 typedef struct {
-	uint16_t max_distance_img_diagonal_percent;
+	uint16_t max_distance;					// maximum 2D distance in pixels between points to attribute the point to the cluster
 	uint8_t min_cluster_size;
 	uint16_t min_clusters_count_merge;
 	bool enable_geometric_filtering;
@@ -31,15 +31,15 @@ typedef struct {
 
 #define FAST9_DEFAULT_THRESHOLD 40
 
-#define DBSCAN_MAX_DISTANCE_IMG_DIAGONAL_PERCENT_DEFAULT	4			// max 2D distance between points to attribute the point to the cluster
+#define DBSCAN_MAX_DISTANCE_DIAGONAL_PERCENT_DEFAULT		3.0f		// max 2D distance (% of diagonal) between points to attribute the point to the cluster
 #define DBSCAN_MIN_CLUSTER_SIZE_DEFAULT						3			// min points number in cluster
 #define DBSCAN_MIN_CLUSTERS_COUNT_MERGE_DEFAULT				24			// Trigger threshold for secondary DBSCAN
-#define DBSCAN_ENABLE_GEOM_FILTERING_DEFAULT				false
+#define DBSCAN_ENABLE_GEOMETRIC_FILTERING_DEFAULT			false	// may be excessive for optical flow calculate, default off
 #define DBSCAN_CLUSTER_POINT_UNCLASSIFIED					UINT16_MAX
 #define DBSCAN_POINT_NOISE									UINT16_MAX - 1
 #define DBSCAN_CLUSTER_MAX_UNIQUE_COUNT						UINT16_MAX - 2
 
-#define TRACK_MAX_DISTANCE_DEFAULT							30
+#define TRACK_MAX_DISTANCE_DIAGONAL_PERCENT_DEFAULT			1.8f
 #define TRACK_MAX_MISSED_DEFAULT							5
 #define TRACK_DEVIATION_THRESHOLD_SQUARED_DEFAULT			8
 

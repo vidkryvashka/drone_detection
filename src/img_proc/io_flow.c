@@ -45,14 +45,11 @@ static errno_t process_one_image(
 		ddloge(TAG, "failed to save image");
 
 	if (precision) {
-		double w = img->width;
-		double h = img->height;
-		double img_diagonal = sqrt(w * w + h * h);
-		if (img_diagonal > 0.0) {
+		if (iio_conf->img_diagonal > 0) {
 			double dx = (double)label_drone.x - (double)calculated_aim.x;
 			double dy = (double)label_drone.y - (double)calculated_aim.y;
 			double coord_label_calculated_diff = sqrt(dx * dx + dy * dy);
-			*precision = (uint16_t)(coord_label_calculated_diff * 100.0 / img_diagonal);
+			*precision = (uint16_t)(coord_label_calculated_diff * 100.0 / (double)iio_conf->img_diagonal);
 		} else {
 			*precision = 0;
 		}

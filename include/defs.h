@@ -73,6 +73,7 @@ errno_t apply_io_mode(
 	main_conf_t *conf
 );
 
+
 #define PROGRESS_BAR_WIDTH 50
 /**
  * @brief should be called inside some heavy loop

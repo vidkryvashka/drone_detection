@@ -11,6 +11,7 @@
 #define OUTPUT_VIDEO_PATH_DEFAULT "output/dildo.mp4"
 
 typedef struct {
+	uint16_t img_diagonal;
 	char input_filepath[STR_MAX_LEN + 1];
 	char input_img_dir[STR_MAX_LEN + 1];
 	char output_dir[STR_MAX_LEN + 1];
@@ -32,6 +33,14 @@ image_t* image_create(
 	const uint16_t width,
 	const uint16_t height,
 	const enum CHANNELS channel
+);
+
+/**
+ * @brief calculates image diagonal at startup into iio_conf->img_diagonal
+ */
+errno_t calculate_img_diagonal(
+	img_io_conf_t *iio_conf,
+	pixel_coord_t *frame_size
 );
 
 /**
